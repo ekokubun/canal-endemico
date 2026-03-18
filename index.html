@@ -558,7 +558,7 @@ function BoletimTab() {
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
             <thead>
               <tr style={{ borderBottom: "2px solid rgba(255,255,255,0.1)" }}>
-                {["Agravo", "Prio", "Total 2025", "Média 22-24", "Var%", "Pico 2025", "SE>P90", "2026 (parcial)", "Últ. SE"].map(h => (
+                {["Agravo", "Prio", "Total 2025", "Média 22-24", "Var%", "Pico 2025", "SE\u003eP90", "2026 (parcial)", "Últ. SE"].map(h => (
                   <th key={h} style={{ padding: "8px 5px", textAlign: "left", color: "#94a3b8",
                     fontWeight: 600, whiteSpace: "nowrap", fontSize: 11 }}>{h}</th>
                 ))}
@@ -854,4 +854,284 @@ function BoletimTab() {
   );
 }
 
->
+function App() {
+  const agravos = Object.keys(DATA.channels);
+  const [selectedAgravo, setSelectedAgravo] = useState(agravos[0]);
+  const [selectedYear, setSelectedYear] = useState(null);
+  const [overlayYears, setOverlayYears] = useState([]);
+  const [logScale, setLogScale] = useState(false);
+  const [categoryFilter, setCategoryFilter] = useState("capitulos");
+  const [activeTab, setActiveTab] = useState("dashboard");
+  const [activeAgeGroups, setActiveAgeGroups] = useState([]);
+
+  const channelData = DATA.channels[selectedAgravo];
+  const years = channelData?.years || [];
+  const year = selectedYear || years[years.length - 1];
+  const kpi = channelData?.kpis?.[String(year)] || {};
+
+  const filteredAgravos = useMemo(() => {
+    return CATEGORIES[categoryFilter] || agravos;
+  }, [categoryFilter, agravos]);
+
+  const toggleAgeGroup = (ag) => {
+    setActiveAgeGroups(prev =>
+      prev.includes(ag) ? prev.filter(x => x !== ag) : [...prev, ag]
+    );
+  };
+
+  // Build age group series for the selected agravo + year
+  const ageGroupSeries = useMemo(() => {
+    if (activeAgeGroups.length === 0) return [];
+    const agData = AGE_GROUP_DATA[selectedAgravo];
+    if (!agData) return [];
+    const series = [];
+    for (const ag of activeAgeGroups) {
+      if (!agData[ag]) continue;
+      const yearData = agData[ag][String(year)];
+      if (!yearData) continue;
+      const points = [];
+      for (let se = 1; se <= 52; se++) {
+        points.push({ se, value: yearData[String(se)] || 0 });
+      }
+      series.push({ name: ag, color: AGE_COLORS[ag], data: points });
+    }
+    return series;
+  }, [selectedAgravo, year, activeAgeGroups]);
+
+  // When exactly 1 age group is active and age channel data exists, use age-specific channel
+  const ageChannel = useMemo(() => {
+    if (activeAgeGroups.length !== 1) return null;
+    const ag = activeAgeGroups[0];
+    const agCh = AGE_CHANNELS[selectedAgravo];
+    if (!agCh || !agCh[ag]) return null;
+    return agCh[ag];
+  }, [selectedAgravo, activeAgeGroups]);
+
+  const toggleOverlay = (y) => {
+    setOverlayYears(prev =>
+      prev.includes(y) ? prev.filter(x => x !== y) : [...prev, y]
+    );
+  };
+
+  const cardStyle = {
+    background: "rgba(255,255,255,0.03)",
+    borderRadius: 14, padding: 20,
+    border: "1px solid rgba(255,255,255,0.06)",
+    marginBottom: 16,
+  };
+
+  return (
+    <div style={{
+      fontFamily: "DM Sans, sans-serif",
+      background: "linear-gradient(135deg, #0c0a1f 0%, #1a1040 50%, #0f172a 100%)",
+      minHeight: "100vh", color: "#e2e8f0", padding: "24px 20px",
+    }}>
+      <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+
+      {/* Header */}
+      <div style={{ textAlign: "center", marginBottom: 28 }}>
+        <h1 style={{
+          fontSize: 28, fontWeight: 700, margin: 0,
+          background: "linear-gradient(90deg, #818cf8, #c084fc, #f472b6)",
+          WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
+        }}>
+          Canal Endêmico Bayesiano
+        </h1>
+        <p style={{ color: "#94a3b8", fontSize: 13, margin: "6px 0 0" }}>
+          Vigilância Epidemiológica — UPAs Rio Claro, SP · Modelo Gamma-Poisson Hierárquico
+        </p>
+        {/* Tab navigation */}
+        <div style={{ display: "flex", gap: 0, marginTop: 20, justifyContent: "center" }}>
+          {[["dashboard", "Dashboard"], ["boletim", "Boletim Semanal"]].map(([key, label]) => (
+            <button key={key} onClick={() => setActiveTab(key)} style={{
+              padding: "10px 28px", border: "none", cursor: "pointer",
+              fontSize: 13, fontWeight: 600, fontFamily: "DM Sans, sans-serif",
+              background: activeTab === key ? "rgba(129,140,248,0.2)" : "transparent",
+              color: activeTab === key ? "#818cf8" : "#64748b",
+              borderBottom: activeTab === key ? "2px solid #818cf8" : "2px solid transparent",
+              transition: "all 0.2s",
+            }}>{label}</button>
+          ))}
+        </div>
+      </div>
+
+      {activeTab === "boletim" ? <BoletimTab /> : <>
+
+      {/* Filtro de categoria */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap", justifyContent: "center" }}>
+        {[
+          ["capitulos", "Capítulos CID"],
+          ["cids", "CIDs Individuais"],
+          ["sindromes", "Síndromes"],
+        ].map(([key, label]) => (
+          <button key={key} onClick={() => { setCategoryFilter(key); setSelectedAgravo(CATEGORIES[key][0]); setSelectedYear(null); setOverlayYears([]); setActiveAgeGroups([]); }} style={{
+            padding: "8px 18px", borderRadius: 10, border: "none", cursor: "pointer",
+            fontSize: 13, fontWeight: 600, fontFamily: "DM Sans, sans-serif",
+            background: categoryFilter === key ? "rgba(129,140,248,0.3)" : "rgba(255,255,255,0.06)",
+            color: categoryFilter === key ? "#818cf8" : "#94a3b8",
+          }}>{label}</button>
+        ))}
+      </div>
+
+      {/* Sub-botões dos agravos */}
+      <div style={{ display: "flex", gap: 6, marginBottom: 16, flexWrap: "wrap", justifyContent: "center" }}>
+        {filteredAgravos.map(a => (
+          <button key={a} onClick={() => { setSelectedAgravo(a); setSelectedYear(null); setOverlayYears([]); }} style={{
+            padding: "5px 12px", borderRadius: 8, border: "none", cursor: "pointer",
+            fontSize: 11, fontFamily: "DM Sans, sans-serif",
+            background: selectedAgravo === a ? "rgba(99,102,241,0.3)" : "rgba(255,255,255,0.04)",
+            color: selectedAgravo === a ? "#a5b4fc" : "#94a3b8",
+            border: selectedAgravo === a ? "1px solid rgba(99,102,241,0.5)" : "1px solid rgba(255,255,255,0.06)",
+          }}>{a.length > 40 ? a.substring(0, 37) + "..." : a}</button>
+        ))}
+      </div>
+
+      {/* Seleção de ano + overlay */}
+      <div style={{ display: "flex", gap: 6, marginBottom: 12, flexWrap: "wrap", alignItems: "center" }}>
+        <span style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase", letterSpacing: 1 }}>
+          Ano:
+        </span>
+        {years.map(y => (
+          <button key={y} onClick={() => setSelectedYear(y)} style={{
+            padding: "4px 10px", borderRadius: 6, border: "none", cursor: "pointer",
+            fontSize: 11, fontFamily: "JetBrains Mono, monospace",
+            background: y === year ? "rgba(251,191,36,0.25)" : "rgba(255,255,255,0.04)",
+            color: y === year ? "#fbbf24" : "#94a3b8",
+            fontWeight: y === year ? 700 : 400,
+          }}>{y}</button>
+        ))}
+        <span style={{ fontSize: 11, color: "#64748b", marginLeft: 12, textTransform: "uppercase", letterSpacing: 1 }}>
+          Sobrepor:
+        </span>
+        {years.filter(y2 => y2 !== year).map(y => (
+          <button key={y} onClick={() => toggleOverlay(y)} style={{
+            padding: "4px 10px", borderRadius: 6, border: "none", cursor: "pointer",
+            fontSize: 11, fontFamily: "JetBrains Mono, monospace",
+            background: overlayYears.includes(y) ? "rgba(255,255,255,0.15)" : "rgba(255,255,255,0.04)",
+            color: YEAR_COLORS[y] || "#94a3b8",
+            opacity: overlayYears.includes(y) ? 1 : 0.5,
+          }}>{y}</button>
+        ))}
+        <button onClick={() => setLogScale(!logScale)} style={{
+          marginLeft: "auto", padding: "4px 10px", borderRadius: 6,
+          border: "none", cursor: "pointer", fontSize: 11,
+          background: logScale ? "rgba(234,88,12,0.3)" : "rgba(255,255,255,0.06)",
+          color: logScale ? "#f97316" : "#94a3b8",
+          fontFamily: "JetBrains Mono, monospace",
+        }}>{logScale ? "LOG" : "LIN"}</button>
+      </div>
+
+      {/* Faixa etária */}
+      <div style={{ display: "flex", gap: 6, marginBottom: 16, flexWrap: "wrap", alignItems: "center" }}>
+        <span style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase", letterSpacing: 1 }}>
+          Faixa etária:
+        </span>
+        {activeAgeGroups.length === 1 && AGE_CHANNELS[selectedAgravo]?.[activeAgeGroups[0]] && (
+          <span style={{ fontSize: 10, color: "#818cf8", fontStyle: "italic" }}>
+            (canal específico ativo)
+          </span>
+        )}
+        <button onClick={() => {
+          setActiveAgeGroups(prev => prev.length === AGE_GROUPS.length ? [] : [...AGE_GROUPS]);
+        }} style={{
+          padding: "4px 10px", borderRadius: 6, border: "none", cursor: "pointer",
+          fontSize: 11, fontWeight: 700, fontFamily: "JetBrains Mono, monospace",
+          background: activeAgeGroups.length === AGE_GROUPS.length ? "rgba(129,140,248,0.3)" : "rgba(255,255,255,0.06)",
+          color: activeAgeGroups.length === AGE_GROUPS.length ? "#818cf8" : "#94a3b8",
+        }}>TODAS</button>
+        {AGE_GROUPS.map(ag => (
+          <button key={ag} onClick={() => toggleAgeGroup(ag)} style={{
+            padding: "4px 10px", borderRadius: 6, border: "none", cursor: "pointer",
+            fontSize: 11, fontFamily: "JetBrains Mono, monospace",
+            background: activeAgeGroups.includes(ag) ? "rgba(255,255,255,0.15)" : "rgba(255,255,255,0.04)",
+            color: AGE_COLORS[ag] || "#94a3b8",
+            opacity: activeAgeGroups.includes(ag) ? 1 : 0.5,
+          }}>{ag}</button>
+        ))}
+      </div>
+
+      {/* KPI Cards */}
+      <div style={{ display: "flex", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
+        <KpiCard label="Total do ano" value={kpi.total || 0} color="#60a5fa" />
+        <KpiCard label="Pico" value={kpi.pico || 0} sub={`SE ${kpi.pico_se || "?"}`}
+                 color="#f472b6" />
+        <KpiCard label="SE acima P90" value={kpi.se_acima_p90 || 0}
+                 sub={`de ${channelData?.se_list?.length || 52}`}
+                 color={kpi.se_acima_p90 > 10 ? "#ef4444" : "#34d399"} />
+      </div>
+
+      {/* Heatmap multi-ano (sempre visível) */}
+      <div style={cardStyle}>
+        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>
+          Mapa de Calor — Classificação Semanal ({Math.max(years[0], years[years.length-1]-5)}–{years[years.length-1]})
+        </div>
+        <MultiYearHeatmap
+          classifications={channelData?.classifications || {}}
+          seList={channelData?.se_list || []}
+          years={years}
+          raw={channelData?.raw || []}
+          currentYear={years[years.length - 1]}
+        />
+        <div style={{ marginTop: 10 }}><ZoneLegend /></div>
+      </div>
+
+      {/* Canal Endêmico */}
+      <div style={cardStyle}>
+        <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>
+          Canal Endêmico — {selectedAgravo}
+          {ageChannel && <span style={{
+            fontSize: 11, fontWeight: 500, marginLeft: 12,
+            background: "rgba(129,140,248,0.2)", color: "#a5b4fc",
+            padding: "3px 10px", borderRadius: 6,
+          }}>Canal: {activeAgeGroups[0]}</span>}
+        </div>
+        <EndemicChannelChart channelData={channelData} year={year}
+                             overlayYears={overlayYears} logScale={logScale}  ageGroupSeries={ageGroupSeries} ageChannel={ageChannel} />
+      </div>
+
+      {/* Exceedance */}
+      <div style={cardStyle}>
+        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>
+          Razão de Exceedance (Observado / P90) — {year}
+        </div>
+        <ExceedanceChart channelData={channelData} year={year} />
+      </div>
+
+      {/* Metodologia */}
+      <div style={{ ...cardStyle, fontSize: 12, color: "#94a3b8", lineHeight: 1.7 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: "#e2e8f0", marginBottom: 8 }}>
+          Metodologia
+        </div>
+        <p style={{ margin: "0 0 8px" }}>
+          <b>Modelo hierárquico Gamma-Poisson:</b> Para cada semana epidemiológica (SE),
+          o número de casos segue X ~ Poisson(λ·e), com λ ~ Gamma(a, b) como prior.
+          A marginalização resulta em X ~ Binomial Negativa, capturando a sobredispersão
+          típica de dados epidemiológicos.
+        </p>
+        <p style={{ margin: "0 0 8px" }}>
+          <b>Leave-one-out:</b> O canal de cada ano monitorado é estimado excluindo-se
+          aquele ano da base histórica, garantindo que os limiares são genuinamente preditivos.
+        </p>
+        <p style={{ margin: "0 0 8px" }}>
+          <b>Classificação em 5 zonas:</b> Percentis P10, P25, P50, P75 e P90 da distribuição
+          preditiva definem as zonas Sucesso (≤P25), Segurança (P25–P50), Alerta (P50–P75),
+          Epidêmico (P75–P90) e Emergência ({">"}P90).
+        </p>
+        <p style={{ margin: "0 0 4px", fontSize: 11, color: "#64748b" }}>
+          Base histórica: 2022–2025 · Ano monitorado: 2026 · Monte Carlo: 30.000 amostras/SE
+        </p>
+        <p style={{ margin: 0, fontSize: 11, color: "#64748b" }}>
+          Dados: IDS Saúde (Relatório 187) · Município: Rio Claro/SP · Vigilância Epidemiológica, Fundação Municipal de Saúde
+        </p>
+      </div>
+
+      </>}
+    </div>
+  );
+}
+
+ReactDOM.render(<App />, document.getElementById("root"));
+
+</script>
+</body>
+</html>
