@@ -228,8 +228,24 @@ def step2_age_group_data(csv_path, channel_data):
             df['ano_epi'] = epi.apply(lambda x: x[0])
             df['se_epi'] = epi.apply(lambda x: x[1])
         else:
-            df['ano_epi'] = df[col_date].dt.isocalendar().year
-            df['se_epi'] = df[col_date].dt.isocalendar().week
+            # Fallback: SE padrão MS/OMS (dom–sáb, quarta define ano)
+            from datetime import timedelta as _td
+            def _epi_week_fallback(dt):
+                dow = dt.isoweekday() % 7       # dom=0 .. sab=6
+                sun = dt - _td(days=dow)
+                wed = sun + _td(days=3)
+                ano = wed.year
+                jan1 = pd.Timestamp(ano, 1, 1)
+                j1d = jan1.isoweekday() % 7
+                if j1d <= 3:
+                    fs = jan1 - _td(days=j1d)
+                else:
+                    fs = jan1 + _td(days=7 - j1d)
+                se = (sun - fs).days // 7 + 1
+                return (ano, max(1, se))
+            epi_fb = df[col_date].apply(_epi_week_fallback)
+            df['ano_epi'] = epi_fb.apply(lambda x: x[0])
+            df['se_epi'] = epi_fb.apply(lambda x: x[1])
     else:
         print("  ⚠ Sem coluna 'data' nem 'ano_epi' — skip age channels")
         return {}
