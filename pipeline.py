@@ -262,7 +262,7 @@ def step2_age_group_data(csv_path, channel_data):
         desc_to_cid = cc.DESC_TO_CID
     else:
         desc_to_cid = {}
-    df['cid_code'] = df[col_cid].str.strip().str.upper().map(desc_to_cid)
+    df['cid_code'] = df[col_cid].astype(str).str.strip().str.upper().map(desc_to_cid)
 
     # ── Classificar faixa etária (dashboard age groups) ──────────────
     # Mapeamento faixas GAS → age groups do dashboard
