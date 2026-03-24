@@ -746,8 +746,18 @@ def run_pipeline(input_file, populations, output_file,
         'channels': all_channels,
     }
 
-    with open(output_file, 'w', encoding='utf-8') as f:
-        json.dump(output, f, ensure_ascii=False, indent=None, separators=(',', ':'))
+class NumpyEncoder(json.JSONEncoder):
+           def default(self, obj):
+               if isinstance(obj, (np.integer,)):
+                   return int(obj)
+               if isinstance(obj, (np.floating,)):
+                   return float(obj)
+               if isinstance(obj, np.ndarray):
+                   return obj.tolist()
+               return super().default(obj)
+   
+       with open(output_file, 'w', encoding='utf-8') as f:
+           json.dump(output, f, ensure_ascii=False, indent=None, separators=(',', ':'), cls=NumpyEncoder)
 
     size_kb = Path(output_file).stat().st_size / 1024
     print(f"\n✓ Concluído! {len(all_channels)} canais → {output_file} ({size_kb:.1f} KB)")
