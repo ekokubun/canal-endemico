@@ -49,7 +49,7 @@ AGE_GROUPS = {
 
 # 20 agravos prioritários para canais por faixa etária
 KEY_AGRAVOS_AGE = [
-    "Total de atendimentos",
+    "Todos os atendimentos",
     "X - Aparelho respiratório",
     "SINAN: Influenza NE",
     "SINAN: Dengue",
@@ -333,7 +333,7 @@ def step2_age_group_data(csv_path, channel_data):
             df_f = df[df['faixa'] == faixa]
 
             # Filtrar por agravo (lógica depende do tipo)
-            if agravo == "Total de atendimentos":
+            if agravo == "Todos os atendimentos":
                 df_a = df_f
             elif agravo.startswith("SINAN:"):
                 # SINAN specific - match by CID code patterns
@@ -453,7 +453,7 @@ def step4_boletim(channel_data):
         ("SINAN: Dengue", "ALTA"),
         ("SINAN: Diarréia/gastroenterite", "ALTA"),
         ("SINAN: Pneumonia NE", "ALTA"),
-        ("Total de atendimentos", "MODERADA"),
+        ("Todos os atendimentos", "MODERADA"),
         ("I - Doenças infecciosas e parasitárias", "ALTA"),
         ("X - Aparelho respiratório", "MODERADA"),
         ("XVIII - Sintomas e sinais", "MODERADA"),
@@ -466,11 +466,28 @@ def step4_boletim(channel_data):
         ("SINAN: Sífilis NE", "BAIXA"),
     ]
 
+    # Busca flexível: tenta match exato, depois parcial (case-insensitive)
+    def find_channel(name, channels):
+        if name in channels:
+            return name, channels[name]
+        name_upper = name.upper()
+        for key in channels:
+            if name_upper in key.upper() or key.upper() in name_upper:
+                return key, channels[key]
+        # Tentar sem prefixo "SINAN: "
+        if name.startswith("SINAN: "):
+            short = name[7:]
+            for key in channels:
+                if short.upper() in key.upper():
+                    return key, channels[key]
+        return None, None
+
     boletim = []
     for name, prio in priority_agravos:
-        ch = channels.get(name)
+        matched_name, ch = find_channel(name, channels)
         if not ch:
             continue
+        name = matched_name  # usar o nome real do canal
 
         se_list = ch['se_list']
         raw = ch.get('raw', [])
