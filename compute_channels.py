@@ -663,6 +663,13 @@ def run_pipeline(input_file, populations, output_file,
     if 'cid_codigo' not in df.columns:
         df['cid_codigo'] = df[col_cid].apply(extract_cid_code)
 
+    # Verificar se extração de CID funcionou
+    cid_coverage = df['cid_codigo'].notna().mean()
+    use_desc_fallback = cid_coverage < 0.2
+    if use_desc_fallback:
+        print(f"   ⚠ Apenas {cid_coverage:.0%} dos registros têm código CID extraível.")
+        print(f"   → Usando cid_descricao diretamente para agrupamento.")
+
     # Normalizar populações
     if isinstance(populations, (int, float)):
         pop_dict = {}
@@ -681,34 +688,60 @@ def run_pipeline(input_file, populations, output_file,
     agg_all = aggregate_raw_data(df, col_date, col_cid, col_qty, group_by='all')
     results.update(agg_all)
 
-    if agravos in ('all', 'chapters') or (isinstance(agravos, str) and agravos.startswith('top')):
-        agg_ch = aggregate_raw_data(df, col_date, 'cid_codigo', col_qty, group_by='chapter')
-        results.update(agg_ch)
+    if not use_desc_fallback:
+        # Caminho normal: tem códigos CID → capítulos e SINAN
+        if agravos in ('all', 'chapters') or (isinstance(agravos, str) and agravos.startswith('top')):
+            agg_ch = aggregate_raw_data(df, col_date, 'cid_codigo', col_qty, group_by='chapter')
+            results.update(agg_ch)
 
-    if agravos in ('all', 'sinan'):
-        agg_sinan = aggregate_raw_data(df, col_date, 'cid_codigo', col_qty, group_by='sinan')
-        results.update(agg_sinan)
+        if agravos in ('all', 'sinan'):
+            agg_sinan = aggregate_raw_data(df, col_date, 'cid_codigo', col_qty, group_by='sinan')
+            results.update(agg_sinan)
 
-    if agravos == 'all' or (isinstance(agravos, str) and agravos.startswith('top')):
-        # Top N CIDs mais prevalentes
-        n = 20
-        if isinstance(agravos, str) and agravos.startswith('top_'):
-            n = int(agravos.split('_')[1])
+        if agravos == 'all' or (isinstance(agravos, str) and agravos.startswith('top')):
+            n = 20
+            if isinstance(agravos, str) and agravos.startswith('top_'):
+                n = int(agravos.split('_')[1])
 
-        top_cids = (df.groupby('cid_codigo')[col_qty].sum()
-                    .sort_values(ascending=False)
-                    .head(n))
+            top_cids = (df.groupby('cid_codigo')[col_qty].sum()
+                        .sort_values(ascending=False)
+                        .head(n))
 
-        for cid_code in top_cids.index:
-            if pd.isna(cid_code) or cid_code is None:
+            for cid_code in top_cids.index:
+                if pd.isna(cid_code) or cid_code is None:
+                    continue
+                df_cid = df[df['cid_codigo'] == cid_code].copy()
+                desc = df_cid[col_cid].mode().iloc[0] if len(df_cid) > 0 else cid_code
+                name = f"{cid_code} - {desc}" if cid_code != desc else cid_code
+                agg = df_cid.groupby(['ano_epi', 'semana_epi'])[col_qty].sum().reset_index()
+                agg.columns = ['ano', 'se', 'casos']
+                agg = agg[agg['se'] <= MAX_SE]
+                results[name] = agg
+
+    else:
+        # Fallback: sem códigos CID → agrupar por descrição diretamente
+        # Top N descrições mais prevalentes
+        n = 30
+        col_desc = col_cid
+        df['_desc_clean'] = df[col_desc].astype(str).str.strip()
+        df = df[df['_desc_clean'] != '']
+        df = df[df['_desc_clean'] != 'nan']
+
+        top_descs = (df.groupby('_desc_clean')[col_qty].sum()
+                     .sort_values(ascending=False)
+                     .head(n))
+
+        print(f"   Top {len(top_descs)} descrições por volume:")
+        for desc_name in top_descs.index:
+            if pd.isna(desc_name) or not desc_name:
                 continue
-            df_cid = df[df['cid_codigo'] == cid_code].copy()
-            desc = df_cid[col_cid].mode().iloc[0] if len(df_cid) > 0 else cid_code
-            name = f"{cid_code} - {desc}" if cid_code != desc else cid_code
-            agg = df_cid.groupby(['ano_epi', 'semana_epi'])[col_qty].sum().reset_index()
+            df_desc = df[df['_desc_clean'] == desc_name].copy()
+            agg = df_desc.groupby(['ano_epi', 'semana_epi'])[col_qty].sum().reset_index()
             agg.columns = ['ano', 'se', 'casos']
             agg = agg[agg['se'] <= MAX_SE]
-            results[name] = agg
+            if len(agg) > 0:
+                results[str(desc_name)] = agg
+                print(f"     {desc_name}: {int(agg['casos'].sum())} atendimentos")
 
     print(f"   {len(results)} agravos/grupos identificados")
 
