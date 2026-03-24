@@ -1,6 +1,93 @@
 name: Atualizar Dashboard Epidemiológico
 
 on:
+  # Roda toda segunda-feira às 8h (horário de Brasília = 11:00 UTC)
+  schedule:
+    - cron: '0 11 * * 1'
+  # Permite execução manual pelo GitHub
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repositório
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Instalar dependências
+        run: pip install numpy pandas
+
+      - name: Baixar CSV do Google Drive
+        env:
+          GDRIVE_FILE_ID: ${{ secrets.GDRIVE_FILE_ID }}
+        run: |
+          echo "Baixando CSV do Google Drive..."
+
+          # Primeira tentativa (arquivos pequenos, download direto)
+          curl -sL "https://drive.google.com/uc?export=download&id=${GDRIVE_FILE_ID}" \
+            -o dados_ids.csv
+
+          # Se o arquivo for HTML (página de confirmação), extrair token e re-baixar
+          if head -c 100 dados_ids.csv | grep -qi "html"; then
+            echo "Detectada página de confirmação. Re-baixando com token..."
+            CONFIRM=$(curl -sc /tmp/gcookie \
+              "https://drive.google.com/uc?export=download&id=${GDRIVE_FILE_ID}" \
+              | grep -oP 'confirm=\K[^&]+' || echo "t")
+            curl -sL -b /tmp/gcookie \
+              "https://drive.google.com/uc?export=download&confirm=${CONFIRM}&id=${GDRIVE_FILE_ID}" \
+              -o dados_ids.csv
+          fi
+
+          # Validar que é um CSV real
+          LINHAS=$(wc -l < dados_ids.csv)
+          echo "Arquivo baixado: ${LINHAS} linhas"
+          echo "Primeiras 3 linhas:"
+          head -3 dados_ids.csv
+
+          if head -c 100 dados_ids.csv | grep -qi "html"; then
+            echo "ERRO: Arquivo baixado é HTML, não CSV!"
+            echo "Verifique se o arquivo está compartilhado como 'Qualquer pessoa com o link'."
+            exit 1
+          fi
+
+          if [ "$LINHAS" -lt 10 ]; then
+            echo "ERRO: CSV tem menos de 10 linhas. Verifique o GDRIVE_FILE_ID."
+            exit 1
+          fi
+
+      - name: Executar pipeline completo
+        run: |
+          python pipeline.py dados_ids.csv \
+            --pop 210000 \
+            --output index.html
+          echo "Dashboard gerado: $(du -h index.html | cut -f1)"
+
+      - name: Commit e push
+        run: |
+          git config user.name "GitHub Actions Bot"
+          git config user.email "actions@github.com"
+
+          # Verifica se houve mudança
+          if git diff --quiet index.html 2>/dev/null; then
+            echo "Sem alterações no dashboard. Nada a commitar."
+          else
+            git add index.html
+            HOJE=$(TZ=America/Sao_Paulo date '+%d/%m/%Y %H:%M')
+            git commit -m "Atualização automática do dashboard — ${HOJE}"
+            git push
+            echo "Dashboard atualizado e publicado!"
+          finame: Atualizar Dashboard Epidemiológico
+
+on:
   schedule:
     - cron: '0 11 * * 1'
   workflow_dispatch:
