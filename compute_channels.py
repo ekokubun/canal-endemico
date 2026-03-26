@@ -457,6 +457,399 @@ def aggregate_raw_data(df, col_date, col_cid, col_qty='quantidade',
     return result
 
 
+# ── Mapeamento CID descrição → código (tabela CID-10 DATASUS) ────────
+# Cobre os CIDs mais prevalentes em UPAs/emergências + todos SINAN
+
+CID_DESC_TO_CODE = {
+    # Cap I — Doenças infecciosas e parasitárias (A00-B99)
+    'COLERA': 'A00', 'COLERA NAO ESPECIFICADA': 'A00.9',
+    'FEBRES TIFOIDE E PARATIFOIDE': 'A01',
+    'FEBRE TIFOIDE': 'A01.0', 'FEBRE PARATIFOIDE NAO ESPECIFICADA': 'A01.4',
+    'INTOXICACOES ALIMENTARES BACTERIANAS': 'A05',
+    'OUTRAS INTOXICACOES ALIMENTARES BACTERIANAS': 'A05.8',
+    'AMEBIASE': 'A06', 'AMEBIASE NAO ESPECIFICADA': 'A06.9',
+    'DIARREIA E GASTROENTERITE DE ORIGEM INFECCIOSA PRESUMIVEL': 'A09',
+    'TUBERCULOSE RESPIRATORIA, COM CONFIRMACAO BACTERIOLOGICA E HISTOLOGICA': 'A15',
+    'TUBERCULOSE PULMONAR, COM CONFIRMACAO POR EXAME MICROSCOPICO DE ESCARRO': 'A15.0',
+    'TUBERCULOSE RESPIRATORIA, SEM CONFIRMACAO BACTERIOLOGICA OU HISTOLOGICA': 'A16',
+    'PESTE': 'A20',
+    'BRUCELOSE NAO ESPECIFICADA': 'A23.9',
+    'ERISIPELA': 'A46',
+    'LEPTOSPIROSE NAO ESPECIFICADA': 'A27.9', 'LEPTOSPIROSE ICTEROHEMMORRAGICA': 'A27.0',
+    'HANSENIASE [LEPRA] NAO ESPECIFICADA': 'A30.9',
+    'TETANO NEONATAL': 'A33', 'TETANO OBSTETRICO': 'A34',
+    'OUTROS TIPOS DE TETANO': 'A35',
+    'COQUELUCHE NAO ESPECIFICADA': 'A37.9', 'COQUELUCHE POR BORDETELLA PERTUSSIS': 'A37.0',
+    'ESCARLATINA': 'A38',
+    'SEPTICEMIA NAO ESPECIFICADA': 'A41.9',
+    'SEPTICEMIA NAO ESPECIFICADA (SEPSIS)': 'A41.9',
+    'SIFILIS CONGENITA PRECOCE, NAO ESPECIFICADA': 'A50.2',
+    'SIFILIS CONGENITA': 'A50',
+    'SIFILIS PRECOCE, NAO ESPECIFICADA': 'A51.9',
+    'OUTRAS FORMAS DE SIFILIS TARDIA': 'A52.7',
+    'SIFILIS NAO ESPECIFICADA': 'A53.9',
+    'OUTRAS FORMAS DE SIFILIS E AS NAO ESPECIFICADAS': 'A53',
+    'INFECCAO GONOCOCICA NAO ESPECIFICADA': 'A54.9',
+    'HERPES ZOSTER SEM COMPLICACOES': 'B02.9',
+    'HERPES ZOSTER': 'B02',
+    'VARICELA SEM COMPLICACOES': 'B01.9', 'VARICELA [CATAPORA]': 'B01',
+    'SARAMPO SEM COMPLICACOES': 'B05.9',
+    'RUBEOLA SEM COMPLICACOES': 'B06.9',
+    'HEPATITE AGUDA A': 'B15', 'HEPATITE AGUDA A SEM COMA HEPATICO': 'B15.9',
+    'HEPATITE AGUDA B': 'B16', 'HEPATITE AGUDA B SEM AGENTE DELTA': 'B16.9',
+    'OUTRAS HEPATITES VIRAIS AGUDAS': 'B17',
+    'HEPATITE VIRAL CRONICA': 'B18',
+    'HEPATITE VIRAL NAO ESPECIFICADA': 'B19.9',
+    'DOENCA PELO VIRUS DA IMUNODEFICIENCIA HUMANA [HIV]': 'B24',
+    'PAROTIDITE EPIDEMCIA NAO COMPLICADA': 'B26.9', 'CAXUMBA': 'B26',
+    'CONJUNTIVITE VIRAL': 'B30',
+    'MICOSE NAO ESPECIFICADA': 'B49',
+    'MALARIA POR PLASMODIUM FALCIPARUM': 'B50', 'MALARIA POR PLASMODIUM VIVAX': 'B51',
+    'LEISHMANIOSE VISCERAL': 'B55.0', 'LEISHMANIOSE CUTANEA': 'B55.1',
+    'DOENCA DE CHAGAS AGUDA': 'B57.0', 'DOENCA DE CHAGAS': 'B57',
+    'TOXOPLASMOSE NAO ESPECIFICADA': 'B58.9',
+    'ESQUISTOSSOMOSE': 'B65',
+    'DENGUE [DENGUE CLASSICO]': 'A90', 'DENGUE': 'A90',
+    'FEBRE HEMORRAGICA DEVIDA AO VIRUS DO DENGUE': 'A91',
+    'FEBRE DE CHIKUNGUNYA': 'A92.0', 'CHIKUNGUNYA': 'A92.0',
+    'DOENCA PELO VIRUS ZIKA': 'A92.8', 'ZIKA': 'A92.8',
+    'FEBRE AMARELA NAO ESPECIFICADA': 'A95.9', 'FEBRE AMARELA': 'A95',
+    'RAIVA': 'A82',
+    'FEBRE MACULOSA': 'A77',
+    'MENINGITE BACTERIANA NAO ESPECIFICADA': 'G00.9',
+    'MENINGITE VIRAL': 'A87',
+    # Cap II — Neoplasias (C00-D48)
+    'NEOPLASIA MALIGNA DA MAMA NAO ESPECIFICADA': 'C50.9',
+    'LEIOMIOMA DO UTERO NAO ESPECIFICADO': 'D25.9',
+    # Cap III — Sangue (D50-D89)
+    'ANEMIA POR DEFICIENCIA DE FERRO NAO ESPECIFICADA': 'D50.9',
+    'ANEMIA NAO ESPECIFICADA': 'D64.9',
+    # Cap IV — Endócrinas (E00-E90)
+    'DIABETES MELLITUS NAO ESPECIFICADO': 'E14',
+    'DIABETES MELLITUS NAO ESPECIFICADO - COM CETOACIDOSE': 'E14.1',
+    'DIABETES MELLITUS NAO ESPECIFICADO - SEM COMPLICACOES': 'E14.9',
+    'DIABETES MELLITUS INSULINO-DEPENDENTE': 'E10',
+    'DIABETES MELLITUS NAO-INSULINO-DEPENDENTE': 'E11',
+    'DESIDRATACAO': 'E86', 'DEPLEÇÃO DE VOLUME': 'E86',
+    'HIPOGLICEMIA NAO ESPECIFICADA': 'E16.2',
+    'HIPOPOTASSEMIA': 'E87.6',
+    # Cap V — Transtornos mentais (F00-F99)
+    'TRANSTORNOS MENTAIS E COMPORTAMENTAIS DEVIDOS AO USO DE ALCOOL': 'F10',
+    'TRANSTORNOS MENTAIS DEVIDOS AO USO DE ALCOOL - SINDROME DE DEPENDENCIA': 'F10.2',
+    'TRANSTORNOS MENTAIS DEVIDOS AO USO DE ALCOOL - INTOXICACAO AGUDA': 'F10.0',
+    'EPISODIO DEPRESSIVO NAO ESPECIFICADO': 'F32.9',
+    'TRANSTORNO ANSIOSO NAO ESPECIFICADO': 'F41.9',
+    'TRANSTORNO AFETIVO BIPOLAR NAO ESPECIFICADO': 'F31.9',
+    'ESQUIZOFRENIA NAO ESPECIFICADA': 'F20.9',
+    # Cap VI — Sistema nervoso (G00-G99)
+    'MENINGITE BACTERIANA NAO CLASSIFICADA EM OUTRA PARTE': 'G00',
+    'EPILEPSIA NAO ESPECIFICADA': 'G40.9',
+    'ENXAQUECA NAO ESPECIFICADA': 'G43.9', 'ENXAQUECA': 'G43',
+    'OUTRAS CEFALEIAS': 'G44',
+    'PARALISIA DE BELL': 'G51.0',
+    'VERTIGEM PAROXISTICA BENIGNA': 'H81.1',
+    # Cap VII — Olho (H00-H59)
+    'CONJUNTIVITE NAO ESPECIFICADA': 'H10.9', 'CONJUNTIVITE AGUDA': 'H10.3',
+    'HORDEOLO E CALAZIO': 'H00',
+    'CORPO ESTRANHO NA CORNEA': 'T15.0',
+    # Cap VIII — Ouvido (H60-H95)
+    'OTITE MEDIA NAO ESPECIFICADA': 'H66.9', 'OTITE MEDIA AGUDA NAO ESPECIFICADA': 'H66.9',
+    'OTITE EXTERNA NAO ESPECIFICADA': 'H60.9',
+    'OUTRAS OTITES EXTERNAS INFECCIOSAS': 'H60.3',
+    'CERUME IMPACTADO': 'H61.2',
+    'OTALGIA': 'H92.0',
+    # Cap IX — Aparelho circulatório (I00-I99)
+    'HIPERTENSAO ESSENCIAL (PRIMARIA)': 'I10',
+    'DOENCA CARDIACA HIPERTENSIVA': 'I11',
+    'ANGINA PECTORIS NAO ESPECIFICADA': 'I20.9', 'ANGINA PECTORIS': 'I20',
+    'INFARTO AGUDO DO MIOCARDIO NAO ESPECIFICADO': 'I21.9',
+    'INFARTO AGUDO DO MIOCARDIO': 'I21',
+    'INSUFICIENCIA CARDIACA CONGESTIVA': 'I50.0',
+    'INSUFICIENCIA CARDIACA NAO ESPECIFICADA': 'I50.9',
+    'ACIDENTE VASCULAR CEREBRAL, NAO ESPECIFICADO COMO HEMORRAGICO OU ISQUEMICO': 'I64',
+    'FIBRILACAO E FLUTTER ATRIAL': 'I48',
+    'TAQUICARDIA SUPRAVENTRICULAR': 'I47.1',
+    'TROMBOSE VENOSA PROFUNDA': 'I80.2',
+    'VARIZES DOS MEMBROS INFERIORES': 'I83',
+    'HEMORROIDAS NAO ESPECIFICADAS': 'I84.9', 'HEMORROIDAS': 'I84',
+    'HIPOTENSAO NAO ESPECIFICADA': 'I95.9',
+    'EMBOLIA PULMONAR': 'I26',
+    # Cap X — Aparelho respiratório (J00-J99)
+    'NASOFARINGITE AGUDA [RESFRIADO COMUM]': 'J00',
+    'SINUSITE AGUDA NAO ESPECIFICADA': 'J01.9',
+    'FARINGITE AGUDA NAO ESPECIFICADA': 'J02.9', 'FARINGITE AGUDA': 'J02',
+    'AMIGDALITE AGUDA NAO ESPECIFICADA': 'J03.9',
+    'AMIGDALITE AGUDA DEVIDA A OUTROS MICROORGANISMOS ESPECIFICADOS': 'J03.8',
+    'AMIGDALITE AGUDA ESTREPTOCOCICA': 'J03.0',
+    'LARINGITE AGUDA': 'J04.0',
+    'LARINGITE E TRAQUEITE AGUDAS': 'J04',
+    'INFECCAO AGUDA DAS VIAS AEREAS SUPERIORES NAO ESPECIFICADA': 'J06.9',
+    'INFECCOES AGUDAS DAS VIAS AEREAS SUPERIORES DE LOCALIZACOES MULTIPLAS E NAO ESPECIFICADAS': 'J06',
+    'INFLUENZA [GRIPE] DEVIDA A VIRUS NAO IDENTIFICADO': 'J11',
+    'INFLUENZA [GRIPE] DEVIDA A VIRUS IDENTIFICADO DA GRIPE': 'J10',
+    'PNEUMONIA VIRAL NAO ESPECIFICADA': 'J12.9', 'PNEUMONIA VIRAL': 'J12',
+    'PNEUMONIA BACTERIANA NAO CLASSIFICADA EM OUTRA PARTE': 'J15',
+    'PNEUMONIA POR MICROORGANISMO NAO ESPECIFICADA': 'J18.9',
+    'PNEUMONIA NAO ESPECIFICADA': 'J18.9',
+    'BRONQUITE AGUDA NAO ESPECIFICADA': 'J20.9',
+    'BRONQUIOLITE AGUDA NAO ESPECIFICADA': 'J21.9',
+    'ASMA NAO ESPECIFICADA': 'J45.9', 'ASMA': 'J45',
+    'ESTADO DE MAL ASMATICO': 'J46',
+    'BRONQUITE NAO ESPECIFICADA COMO AGUDA OU CRONICA': 'J40',
+    'DOENCA PULMONAR OBSTRUTIVA CRONICA NAO ESPECIFICADA': 'J44.9',
+    'DOENCA PULMONAR OBSTRUTIVA CRONICA': 'J44',
+    'OUTRAS DOENCAS DO TRATO RESPIRATORIO SUPERIOR': 'J39',
+    'TOSSE': 'R05',
+    # Cap XI — Aparelho digestivo (K00-K93)
+    'CARIE DENTARIA': 'K02',
+    'OUTRAS DOENCAS DOS TECIDOS MOLES DA BOCA': 'K13',
+    'DOENCA DE REFLUXO GASTROESOFAGICO COM ESOFAGITE': 'K21.0',
+    'DOENCA DO REFLUXO GASTROESOFAGICO': 'K21',
+    'ULCERA GASTRICA': 'K25', 'ULCERA DUODENAL': 'K26',
+    'GASTRITE NAO ESPECIFICADA': 'K29.7', 'GASTRITE': 'K29',
+    'OUTRAS GASTRITES AGUDAS': 'K29.1',
+    'DISPEPSIA': 'K30',
+    'GASTROENTERITE E COLITE NAO-INFECCIOSAS, NAO ESPECIFICADAS': 'K52.9',
+    'SINDROME DO COLON IRRITAVEL': 'K58',
+    'CONSTIPACAO': 'K59.0',
+    'APENDICITE AGUDA NAO ESPECIFICADA': 'K35.9', 'APENDICITE AGUDA': 'K35',
+    'HERNIA INGUINAL': 'K40',
+    'DOENCA DIVERTICULAR DO INTESTINO GROSSO SEM PERFURACAO OU ABSCESSO': 'K57.3',
+    'COLELITIASE NAO ESPECIFICADA': 'K80.2', 'COLELITIASE': 'K80',
+    'COLECISTITE NAO ESPECIFICADA': 'K81.9', 'COLECISTITE AGUDA': 'K81.0',
+    'PANCREATITE AGUDA': 'K85',
+    'OUTRAS DOENCAS DO ANUS E DO RETO': 'K62',
+    'DOENCAS DO FIGADO': 'K76',
+    'HEMORRAGIA GASTROINTESTINAL NAO ESPECIFICADA': 'K92.2',
+    # Cap XII — Pele (L00-L99)
+    'ABSCESSO CUTANEO, FURUNCULO E CARBUNCULO': 'L02',
+    'ABSCESSO CUTANEO, FURUNCULO E CARBUNCULO NAO ESPECIFICADOS': 'L02.9',
+    'CELULITE NAO ESPECIFICADA': 'L03.9', 'CELULITE': 'L03',
+    'IMPETIGO': 'L01',
+    'DERMATITE ATOPICA NAO ESPECIFICADA': 'L20.9',
+    'DERMATITE DE CONTATO NAO ESPECIFICADA': 'L25.9',
+    'URTICARIA NAO ESPECIFICADA': 'L50.9', 'URTICARIA': 'L50',
+    'PIODERMITE': 'L08.0',
+    # Cap XIII — Sistema osteomuscular (M00-M99)
+    'DORSALGIA NAO ESPECIFICADA': 'M54.9', 'DORSALGIA': 'M54',
+    'CERVICALGIA': 'M54.2',
+    'LUMBAGO COM CIATICA': 'M54.4',
+    'DOR LOMBAR BAIXA': 'M54.5', 'LUMBAGO NAO ESPECIFICADO': 'M54.5',
+    'MIALGIA': 'M79.1',
+    'DOR EM MEMBRO': 'M79.6',
+    'ARTRALGIA': 'M25.5',
+    'CONTRATURA DE MUSCULO': 'M62.4',
+    'GOTA NAO ESPECIFICADA': 'M10.9', 'GOTA': 'M10',
+    'ARTRITE REUMATOIDE NAO ESPECIFICADA': 'M06.9',
+    'TRANSTORNOS DE DISCOS LOMBARES E DE OUTROS DISCOS INTERVERTEBRAIS COM RADICULOPATIA': 'M51.1',
+    'SINOVITE E TENOSSINOVITE NAO ESPECIFICADAS': 'M65.9',
+    'EPICONDILITE LATERAL': 'M77.1',
+    # Cap XIV — Aparelho geniturinário (N00-N99)
+    'INFECCAO DO TRATO URINARIO DE LOCALIZACAO NAO ESPECIFICADA': 'N39.0',
+    'CISTITE NAO ESPECIFICADA': 'N30.9', 'CISTITE AGUDA': 'N30.0',
+    'CALCULO RENAL': 'N20.0', 'CALCULO DO RIM E DO URETER': 'N20',
+    'COLICA RENAL NAO ESPECIFICADA': 'N23',
+    'HIPERPLASIA DA PROSTATA': 'N40',
+    'MENSTRUACAO EXCESSIVA E FREQUENTE COM CICLO REGULAR': 'N92.0',
+    'HEMORRAGIA VAGINAL E UTERINA ANORMAL, NAO ESPECIFICADA': 'N93.9',
+    'DOENCA INFLAMATORIA DO UTERO NAO ESPECIFICADA': 'N71.9',
+    'VAGINITE AGUDA': 'N76.0',
+    # Cap XV — Gravidez (O00-O99)
+    'ABORTO ESPONTANEO': 'O03',
+    'TRABALHO DE PARTO PREMATURO': 'O60',
+    'ECLAMPSIA': 'O15',
+    'HIPERTENSAO GESTACIONAL': 'O13',
+    # Cap XVIII — Sintomas e sinais (R00-R99)
+    'DOR ABDOMINAL E PELVICA': 'R10',
+    'DOR ABDOMINAL NAO ESPECIFICADA': 'R10.4',
+    'DOR LOCALIZADA NO ABDOME SUPERIOR': 'R10.1',
+    'DOR LOCALIZADA EM OUTRAS PARTES DO ABDOME INFERIOR': 'R10.3',
+    'DOR PELVICA E PERINEAL': 'R10.2',
+    'NAUSEA E VOMITOS': 'R11', 'NAUSEA': 'R11',
+    'PIROSE': 'R12',
+    'CEFALEIA': 'R51', 'DOR DE CABECA': 'R51',
+    'FEBRE NAO ESPECIFICADA': 'R50.9', 'FEBRE': 'R50',
+    'SINCOPE E COLAPSO': 'R55',
+    'CONVULSOES NAO CLASSIFICADAS EM OUTRA PARTE': 'R56',
+    'DOR NAO CLASSIFICADA EM OUTRA PARTE': 'R52',
+    'DOR AGUDA': 'R52.0',
+    'DOR TORACICA NAO ESPECIFICADA': 'R07.4',
+    'DOR DE GARGANTA E NO PEITO': 'R07',
+    'DISPNEIA': 'R06.0', 'FALTA DE AR': 'R06.0',
+    'EPISTAXE': 'R04.0',
+    'HEMOPTISE': 'R04.2',
+    'DIFICULDADE DE DEGLUTICAO': 'R13',
+    'ERUPCAO CUTANEA E OUTRAS NAO ESPECIFICADAS': 'R21',
+    'EDEMA LOCALIZADO': 'R60.0',
+    'TONTURA E INSTABILIDADE': 'R42', 'VERTIGEM': 'R42',
+    'MAL ESTAR E FADIGA': 'R53', 'MAL-ESTAR': 'R53',
+    'CAUSAS DESCONHECIDAS E NAO ESPECIFICADAS DE MORBIDADE': 'R69',
+    'HEMORRAGIA NAO CLASSIFICADA EM OUTRA PARTE': 'R58',
+    'RETENCAO URINARIA': 'R33',
+    'ANOREXIA': 'R63.0',
+    'ACHADOS ANORMAIS DE EXAMES DE SANGUE': 'R79',
+    # Cap XIX — Lesões e envenenamentos (S00-T98)
+    'TRAUMATISMO SUPERFICIAL DA CABECA NAO ESPECIFICADO': 'S00.9',
+    'TRAUMATISMO NAO ESPECIFICADO DA CABECA': 'S09.9',
+    'FERIMENTO DA CABECA': 'S01',
+    'FRATURA DO RADIO DISTAL': 'S52.5',
+    'FRATURA DA PERNA, INCLUINDO TORNOZELO': 'S82',
+    'FRATURA DO FEMUR': 'S72',
+    'ENTORSE E DISTENSAO DO TORNOZELO': 'S93.4',
+    'ENTORSE E DISTENSAO DO JOELHO': 'S83',
+    'CONTUSAO DO JOELHO': 'S80.0',
+    'CONTUSAO DE OUTRAS PARTES DO PUNHO E DA MAO': 'S60.2',
+    'CONTUSAO DE DEDO(S) DO PE SEM LESAO DA UNHA': 'S90.1',
+    'FERIMENTO DO DEDO(S) DA MAO SEM LESAO DA UNHA': 'S61.0',
+    'FERIMENTO DE OUTRAS PARTES DO ANTEBRACO': 'S51.8',
+    'FERIMENTO DO PENIS': 'S31.2',
+    'LUXACAO DO OMBRO': 'S43.0',
+    'CORPO ESTRANHO NO OUVIDO': 'T16',
+    'CORPO ESTRANHO NO TRATO RESPIRATORIO': 'T17',
+    'EFEITOS DO CALOR E DA LUZ': 'T67',
+    'QUEIMADURA NAO ESPECIFICADA': 'T30',
+    'INTOXICACAO POR OUTRAS DROGAS, MEDICAMENTOS E SUBSTANCIAS BIOLOGICAS E AS NAO ESPECIFICADAS': 'T50.9',
+    'EFEITO TOXICO DE ALCOOL': 'T51',
+    'EFEITOS TOXICOS DE SUBSTANCIAS DE ORIGEM PREDOMINANTEMENTE NAO-MEDICINAL': 'T65',
+    'MORDEDURA OU PICADA DE INSETO NAO-VENENOSO': 'W57',
+    'CONTATO COM ANIMAIS VENENOSOS': 'T63',
+    # Cap XX — Causas externas (V01-Y98)
+    'QUEDA MESMO NIVEL POR ESCORR., TROP. OU PASSO FALSO - RESIDENCIA': 'W01.0',
+    'MOTOCICLISTA TRAUM. EM COL. C/CARRO, PICK-UP OU CAMINHON. - CONDUTOR TRAUM. EM ACID. ñ-TRANSITO': 'V43.0',
+    'AGRESSAO POR MEIO DE OBJETO CORTANTE OU PENETRANTE': 'X99',
+    'AGRESSAO POR DISPARO DE ARMA DE FOGO': 'X95',
+    # Cap XXI — Fatores de saúde (Z00-Z99)
+    'EXAME MEDICO GERAL': 'Z00.0', 'EXAME GERAL E INVESTIGACAO': 'Z00',
+    'PESSOA EM CONTATO COM SERVICOS DE SAUDE PARA INVESTIGACAO E EXAMES': 'Z00',
+    'NECESSIDADE DE VACINACAO': 'Z23',
+    'SUPERVISAO DE GRAVIDEZ NORMAL NAO ESPECIFICADA': 'Z34.9',
+    # COVID e SRAG
+    'COVID-19, VIRUS IDENTIFICADO': 'U07.1',
+    'COVID-19, VIRUS NAO IDENTIFICADO': 'U07.2',
+    'SINDROME RESPIRATORIA AGUDA GRAVE [SARS]': 'U04',
+}
+
+# ── Mapeamento por palavras-chave para capítulo (fallback) ───────────
+# Quando não há código CID e a descrição não está no dicionário acima,
+# tenta determinar o capítulo por palavras-chave na descrição.
+CHAPTER_KEYWORDS = {
+    'I - Doenças infecciosas e parasitárias': [
+        'DENGUE', 'CHIKUNGUNYA', 'ZIKA', 'MALARIA', 'TUBERCULOSE',
+        'HANSENIASE', 'LEPTOSPIROSE', 'HEPATITE', 'HIV', 'AIDS',
+        'SIFILIS', 'GONOCOCIC', 'HERPES', 'VARICELA', 'SARAMPO',
+        'RUBEOLA', 'CAXUMBA', 'MENINGITE', 'TETANO', 'COQUELUCHE',
+        'DIARREIA', 'GASTROENTERITE DE ORIGEM INFECCIOSA', 'FEBRE TIFOIDE',
+        'COLERA', 'SEPTICEMIA', 'ERISIPELA', 'ESQUISTOSSOMOSE',
+        'LEISHMANIOSE', 'CHAGAS', 'TOXOPLASMOSE', 'RAIVA', 'PESTE',
+        'FEBRE AMARELA', 'FEBRE MACULOSA', 'FEBRE HEMORRAGICA',
+    ],
+    'IX - Aparelho circulatório': [
+        'HIPERTENSAO', 'INFARTO', 'ANGINA', 'INSUFICIENCIA CARDIACA',
+        'ACIDENTE VASCULAR CEREBRAL', 'AVC', 'FIBRILACAO', 'FLUTTER',
+        'TAQUICARDIA', 'ARRITMIA', 'EMBOLIA PULMONAR', 'TROMBOSE',
+        'VARIZES', 'HEMORROIDAS', 'HIPOTENSAO', 'ENDOCARDITE',
+        'MIOCARDITE', 'PERICARDITE', 'DOENCA CARDIACA',
+    ],
+    'X - Aparelho respiratório': [
+        'PNEUMONIA', 'BRONQUITE', 'BRONQUIOLITE', 'ASMA', 'GRIPE',
+        'INFLUENZA', 'SINUSITE', 'FARINGITE', 'AMIGDALITE', 'LARINGITE',
+        'TRAQUEITE', 'NASOFARINGITE', 'RESFRIADO', 'INFECCAO.*VIAS AEREAS',
+        'PULMONAR OBSTRUTIVA', 'RINITE', 'OTITE',
+    ],
+    'XI - Aparelho digestivo': [
+        'GASTRITE', 'ULCERA GASTRICA', 'ULCERA DUODENAL', 'APENDICITE',
+        'COLELITIASE', 'COLECISTITE', 'PANCREATITE', 'DISPEPSIA',
+        'REFLUXO GASTRO', 'HERNIA INGUINAL', 'HERNIA UMBILICAL',
+        'CONSTIPACAO', 'CARIE DENTARIA', 'DIVERTICULAR', 'HEMORRAGIA GASTROINTESTINAL',
+    ],
+    'XIII - Sistema osteomuscular': [
+        'DORSALGIA', 'CERVICALGIA', 'LUMBAGO', 'LOMBALGIA', 'ARTRITE',
+        'ARTROSE', 'GOTA', 'MIALGIA', 'TENDINITE', 'BURSITE',
+        'CONTRATURA', 'EPICONDILITE', 'FIBROMIALGIA', 'ESPONDIL',
+        'RADICULOPATIA', 'DOR LOMBAR',
+    ],
+    'XIX - Lesões e causas externas': [
+        'TRAUMATISMO', 'FRATURA', 'LUXACAO', 'ENTORSE', 'CONTUSAO',
+        'FERIMENTO', 'QUEIMADURA', 'CORPO ESTRANHO', 'INTOXICACAO',
+        'ENVENENAMENTO', 'MORDEDURA', 'PICADA', 'QUEDA',
+        'MOTOCICLISTA', 'PEDESTRE', 'CICLISTA', 'AGRESSAO',
+        'LESAO', 'EFEITO TOXICO',
+    ],
+    'XIV - Aparelho geniturinário': [
+        'INFECCAO.*URINARI', 'CISTITE', 'CALCULO RENAL', 'COLICA RENAL',
+        'PROSTAT', 'VAGINITE', 'MENSTRUACAO', 'HEMORRAGIA VAGINAL',
+    ],
+    'XVIII - Sintomas e sinais': [
+        'DOR ABDOMINAL', 'NAUSEA', 'VOMITO', 'FEBRE NAO ESPECIFICADA',
+        'CEFALEIA', 'SINCOPE', 'CONVULS', 'DOR TORACICA',
+        'DISPNEIA', 'EPISTAXE', 'ERUPCAO CUTANEA', 'TONTURA',
+        'MAL ESTAR', 'VERTIGEM', 'DOR AGUDA', 'DOR NAO CLASSIF',
+        'RETENCAO URINARIA', 'HEMOPTISE',
+    ],
+    'IV - Endócrinas, nutricionais e metabólicas': [
+        'DIABETES', 'HIPOGLICEMIA', 'DESIDRATACAO', 'HIPOPOTASSEMIA',
+        'OBESIDADE', 'DESNUTRICAO', 'TIREOIDE', 'HIPOTIROID', 'HIPERTIROID',
+    ],
+    'XII - Pele e tecido subcutâneo': [
+        'ABSCESSO CUTANEO', 'FURUNCULO', 'CELULITE', 'IMPETIGO',
+        'DERMATITE', 'URTICARIA', 'PIODERMITE', 'ECZEMA',
+    ],
+    'V - Transtornos mentais': [
+        'TRANSTORNO.*MENTAL', 'DEPRESSIVO', 'ANSIOS', 'BIPOLAR',
+        'ESQUIZOFRENIA', 'USO DE ALCOOL', 'USO DE DROGA', 'PANICO',
+    ],
+    'XXI - Fatores que influenciam o estado de saúde': [
+        'EXAME MEDICO', 'EXAME GERAL', 'VACINACAO', 'SUPERVISAO DE GRAVIDEZ',
+        'PESSOA EM CONTATO', 'ACOMPANHAMENTO',
+    ],
+}
+
+
+def desc_to_cid_code(desc):
+    """Mapeia descrição CID (DATASUS) para código CID-10.
+
+    Usa: (1) dicionário exato, (2) busca parcial no dicionário.
+    Retorna o código ou None se não encontrar.
+    """
+    if desc is None or not isinstance(desc, str) or desc.strip() == '':
+        return None
+
+    d = desc.strip().upper()
+
+    # 1. Busca exata
+    if d in CID_DESC_TO_CODE:
+        return CID_DESC_TO_CODE[d]
+
+    # 2. Busca parcial — a descrição pode conter texto extra
+    for key, code in CID_DESC_TO_CODE.items():
+        if key in d or d in key:
+            return code
+
+    return None
+
+
+def desc_to_chapter(desc):
+    """Determina capítulo CID a partir da descrição usando palavras-chave.
+
+    Fallback para quando não há código CID nem match no dicionário.
+    """
+    import re
+    if desc is None or not isinstance(desc, str) or desc.strip() == '':
+        return None
+
+    d = desc.strip().upper()
+
+    for chapter, keywords in CHAPTER_KEYWORDS.items():
+        for kw in keywords:
+            if '.*' in kw:
+                if re.search(kw, d):
+                    return chapter
+            elif kw in d:
+                return chapter
+
+    return None
+
+
 # ── Mapeamento CID ───────────────────────────────────────────────────
 
 CID_CHAPTERS = {
@@ -659,25 +1052,56 @@ def run_pipeline(input_file, populations, output_file,
             df['quantidade'] = 1
             col_qty = 'quantidade'
 
-    # Extrair código CID se só temos descrição
+    # Extrair código CID — 3 estratégias em cascata:
+    # 1. Coluna cid_codigo (se existir e tiver dados)
+    # 2. extract_cid_code() — regex em descrições tipo "A90 - Dengue"
+    # 3. desc_to_cid_code() — dicionário DATASUS descrição→código
+    col_desc = None
+    for key in ['cid_descricao', 'cid_desc']:
+        if key in cols_lower:
+            col_desc = cols_lower[key]
+            break
+    if col_desc is None:
+        col_desc = col_cid  # fallback
+
     if 'cid_codigo' in df.columns:
         # Coluna cid_codigo existe no CSV → limpar valores vazios
         df['cid_codigo'] = df['cid_codigo'].astype(str).str.strip()
         df.loc[df['cid_codigo'].isin(['', 'nan', 'None', 'NaN']), 'cid_codigo'] = pd.NA
-        # Para registros sem código, tentar extrair da descrição
+        # Estratégia 2: regex na descrição
         mask_no_code = df['cid_codigo'].isna()
-        if mask_no_code.any() and col_cid in df.columns:
-            df.loc[mask_no_code, 'cid_codigo'] = df.loc[mask_no_code, col_cid].apply(extract_cid_code)
-        print(f"   Coluna cid_codigo encontrada: {df['cid_codigo'].notna().mean():.0%} com código")
+        if mask_no_code.any() and col_desc in df.columns:
+            df.loc[mask_no_code, 'cid_codigo'] = (
+                df.loc[mask_no_code, col_desc].apply(extract_cid_code))
+        # Estratégia 3: dicionário DATASUS
+        mask_no_code = df['cid_codigo'].isna()
+        if mask_no_code.any() and col_desc in df.columns:
+            df.loc[mask_no_code, 'cid_codigo'] = (
+                df.loc[mask_no_code, col_desc].apply(desc_to_cid_code))
+        print(f"   Coluna cid_codigo: {df['cid_codigo'].notna().mean():.0%} com código")
     else:
+        # Estratégia 2
         df['cid_codigo'] = df[col_cid].apply(extract_cid_code)
+        # Estratégia 3
+        mask_no_code = df['cid_codigo'].isna()
+        if mask_no_code.any() and col_desc in df.columns:
+            df.loc[mask_no_code, 'cid_codigo'] = (
+                df.loc[mask_no_code, col_desc].apply(desc_to_cid_code))
 
-    # Verificar se extração de CID funcionou
+    # Verificar cobertura
     cid_coverage = df['cid_codigo'].notna().mean()
+    print(f"   Cobertura CID: {cid_coverage:.0%}")
+
+    # Se cobertura ainda baixa, usar desc_to_chapter como fallback para capítulos
     use_desc_fallback = cid_coverage < 0.2
     if use_desc_fallback:
-        print(f"   ⚠ Apenas {cid_coverage:.0%} dos registros têm código CID extraível.")
-        print(f"   → Usando cid_descricao diretamente para agrupamento.")
+        print(f"   ⚠ Cobertura CID baixa ({cid_coverage:.0%}).")
+        print(f"   → Usando desc_to_chapter() por palavras-chave para capítulos.")
+        # Criar coluna auxiliar de capítulo por descrição
+        if col_desc in df.columns:
+            df['_chapter_from_desc'] = df[col_desc].apply(desc_to_chapter)
+            chapter_coverage = df['_chapter_from_desc'].notna().mean()
+            print(f"   → Capítulos por palavras-chave: {chapter_coverage:.0%} cobertos")
 
     # Normalizar populações
     if isinstance(populations, (int, float)):
@@ -730,10 +1154,42 @@ def run_pipeline(input_file, populations, output_file,
                 results[name] = agg
 
     else:
-        # Fallback: sem códigos CID → agrupar por descrição diretamente
-        # Top N descrições mais prevalentes
+        # Fallback: poucos códigos CID → usar descrições + palavras-chave
+        print(f"   Usando fallback por descrição...")
+
+        # Capítulos via desc_to_chapter()
+        if agravos in ('all', 'chapters') or (isinstance(agravos, str) and agravos.startswith('top')):
+            if '_chapter_from_desc' in df.columns:
+                df_ch = df[df['_chapter_from_desc'].notna()].copy()
+                if len(df_ch) > 0:
+                    for ch, gdf in df_ch.groupby('_chapter_from_desc'):
+                        agg_c = gdf.groupby(['ano_epi', 'semana_epi'])[col_qty].sum().reset_index()
+                        agg_c.columns = ['ano', 'se', 'casos']
+                        agg_c = agg_c[agg_c['se'] <= MAX_SE]
+                        if len(agg_c) > 0:
+                            results[str(ch)] = agg_c
+                    print(f"   → {len([k for k in results if k not in ['Todos os atendimentos']])} capítulos gerados")
+
+        # SINAN via palavras-chave na descrição
+        if agravos in ('all', 'sinan'):
+            # Mapear descrições para códigos CID via dicionário, depois checar SINAN
+            if col_desc in df.columns:
+                df['_sinan_from_desc'] = df[col_desc].apply(
+                    lambda d: cid_to_sinan(desc_to_cid_code(d)) if desc_to_cid_code(d) else 'Outros'
+                )
+                df_sinan = df[df['_sinan_from_desc'] != 'Outros']
+                if len(df_sinan) > 0:
+                    for sinan_name, gdf in df_sinan.groupby('_sinan_from_desc'):
+                        agg_s = gdf.groupby(['ano_epi', 'semana_epi'])[col_qty].sum().reset_index()
+                        agg_s.columns = ['ano', 'se', 'casos']
+                        agg_s = agg_s[agg_s['se'] <= MAX_SE]
+                        if len(agg_s) > 0:
+                            results[f"SINAN: {sinan_name}"] = agg_s
+                    sinan_count = len([k for k in results if k.startswith('SINAN:')])
+                    print(f"   → {sinan_count} agravos SINAN detectados")
+
+        # Top N descrições como CIDs individuais
         n = 30
-        col_desc = col_cid
         df['_desc_clean'] = df[col_desc].astype(str).str.strip()
         df = df[df['_desc_clean'] != '']
         df = df[df['_desc_clean'] != 'nan']
@@ -746,13 +1202,16 @@ def run_pipeline(input_file, populations, output_file,
         for desc_name in top_descs.index:
             if pd.isna(desc_name) or not desc_name:
                 continue
+            # Tentar obter código CID para nome mais limpo
+            cid_code = desc_to_cid_code(str(desc_name))
+            display_name = f"{cid_code} - {desc_name}" if cid_code else str(desc_name)
             df_desc = df[df['_desc_clean'] == desc_name].copy()
             agg = df_desc.groupby(['ano_epi', 'semana_epi'])[col_qty].sum().reset_index()
             agg.columns = ['ano', 'se', 'casos']
             agg = agg[agg['se'] <= MAX_SE]
             if len(agg) > 0:
-                results[str(desc_name)] = agg
-                print(f"     {desc_name}: {int(agg['casos'].sum())} atendimentos")
+                results[display_name] = agg
+                print(f"     {display_name}: {int(agg['casos'].sum())} atendimentos")
 
     print(f"   {len(results)} agravos/grupos identificados")
 
