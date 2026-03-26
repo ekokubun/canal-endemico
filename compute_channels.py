@@ -660,7 +660,16 @@ def run_pipeline(input_file, populations, output_file,
             col_qty = 'quantidade'
 
     # Extrair código CID se só temos descrição
-    if 'cid_codigo' not in df.columns:
+    if 'cid_codigo' in df.columns:
+        # Coluna cid_codigo existe no CSV → limpar valores vazios
+        df['cid_codigo'] = df['cid_codigo'].astype(str).str.strip()
+        df.loc[df['cid_codigo'].isin(['', 'nan', 'None', 'NaN']), 'cid_codigo'] = pd.NA
+        # Para registros sem código, tentar extrair da descrição
+        mask_no_code = df['cid_codigo'].isna()
+        if mask_no_code.any() and col_cid in df.columns:
+            df.loc[mask_no_code, 'cid_codigo'] = df.loc[mask_no_code, col_cid].apply(extract_cid_code)
+        print(f"   Coluna cid_codigo encontrada: {df['cid_codigo'].notna().mean():.0%} com código")
+    else:
         df['cid_codigo'] = df[col_cid].apply(extract_cid_code)
 
     # Verificar se extração de CID funcionou
