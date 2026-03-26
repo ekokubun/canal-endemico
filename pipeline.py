@@ -181,10 +181,11 @@ def step1_compute_channels(csv_path, pop, channel_json='channel_data.json'):
 def step2_age_group_data(csv_path, channel_data):
     """Agrega dados por faixa etária para os 20 agravos prioritários.
 
-    Suporta 3 formatos de CSV:
-      A) GAS agregado: ano_epi;semana_epi;faixa_etaria;cid_descricao;quantidade
-      B) GAS bruto:    data;unidade;sexo;faixa_etaria;cep;cid_descricao
-      C) CSV bruto:    data;unidade;usuario;sexo;idade;cep;cid_descricao
+    Suporta 4 formatos de CSV:
+      A) GAS agregado v2: ano_epi;semana_epi;faixa_etaria;cid_codigo;cid_descricao;quantidade
+      B) GAS agregado v1: ano_epi;semana_epi;faixa_etaria;cid_descricao;quantidade
+      C) GAS bruto:       data;unidade;sexo;faixa_etaria;cep;cid_descricao
+      D) CSV bruto:       data;unidade;usuario;sexo;idade;cep;cid_descricao
     """
     print("\n" + "=" * 60)
     print("STEP 2: Agregando dados por faixa etária")
@@ -258,11 +259,18 @@ def step2_age_group_data(csv_path, channel_data):
         col_qty = cols['quantidade']
 
     # ── Mapear CID ───────────────────────────────────────────────────
-    if hasattr(cc, 'DESC_TO_CID'):
-        desc_to_cid = cc.DESC_TO_CID
+    if 'cid_codigo' in cols:
+        # Nova coluna cid_codigo disponível — usar diretamente
+        df['cid_code'] = df[cols['cid_codigo']].astype(str).str.strip().str.upper()
+        df.loc[df['cid_code'].isin(['', 'NAN', 'NONE']), 'cid_code'] = pd.NA
+        print(f"  → Coluna cid_codigo encontrada: {df['cid_code'].notna().mean():.0%} com código")
     else:
-        desc_to_cid = {}
-    df['cid_code'] = df[col_cid].astype(str).str.strip().str.upper().map(desc_to_cid)
+        # Fallback: mapear descrição → código via DESC_TO_CID
+        if hasattr(cc, 'DESC_TO_CID'):
+            desc_to_cid = cc.DESC_TO_CID
+        else:
+            desc_to_cid = {}
+        df['cid_code'] = df[col_cid].astype(str).str.strip().str.upper().map(desc_to_cid)
 
     # ── Classificar faixa etária (dashboard age groups) ──────────────
     # Mapeamento faixas GAS → age groups do dashboard
