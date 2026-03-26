@@ -329,7 +329,30 @@ def step2_age_group_data(csv_path, channel_data):
 
     df = df.dropna(subset=['faixa'])
 
-    # Agregar por agravo × faixa × ano × SE
+    # ── Preparar mapeamentos para filtragem ─────────────────────
+    # Mapeamento reverso SINAN: disease_name → set(CID codes)
+    sinan_reverse = {}
+    if hasattr(cc, 'SINAN_MAP'):
+        for code, disease in cc.SINAN_MAP.items():
+            sinan_reverse.setdefault(disease, set()).add(code)
+
+    # Mapeamento reverso capítulo: chapter_name → first_letter(s)
+    chapter_reverse = {}
+    if hasattr(cc, 'CID_CHAPTERS'):
+        for prefix, chapter_name in cc.CID_CHAPTERS.items():
+            chapter_reverse.setdefault(chapter_name, set()).add(prefix)
+
+    # Classificar cid_code → SINAN disease e cid_code → chapter
+    if 'cid_code' in df.columns:
+        df['_sinan'] = df['cid_code'].apply(
+            lambda x: cc.cid_to_sinan(x) if hasattr(cc, 'cid_to_sinan') else 'Outros')
+        df['_chapter'] = df['cid_code'].apply(
+            lambda x: cc.cid_to_chapter(x) if hasattr(cc, 'cid_to_chapter') else None)
+    else:
+        df['_sinan'] = 'Outros'
+        df['_chapter'] = None
+
+    # ── Agregar por agravo × faixa × ano × SE ────────────────────
     available_agravos = list(channel_data['channels'].keys())
     selected = [a for a in KEY_AGRAVOS_AGE if a in available_agravos]
 
@@ -343,11 +366,36 @@ def step2_age_group_data(csv_path, channel_data):
             # Filtrar por agravo (lógica depende do tipo)
             if agravo == "Todos os atendimentos":
                 df_a = df_f
-            elif agravo.startswith("SINAN:"):
-                # SINAN specific - match by CID code patterns
-                df_a = df_f  # Simplificado - usar todo para SINAN
+            elif agravo.startswith("SINAN: "):
+                # SINAN: filtrar por doença SINAN
+                sinan_disease = agravo[7:]  # strip "SINAN: "
+                df_a = df_f[df_f['_sinan'] == sinan_disease]
+            elif any(agravo.startswith(f"{rom} -") for rom in
+                     ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII',
+                      'IX', 'X', 'XI', 'XII', 'XIII', 'XIV', 'XV',
+                      'XVI', 'XVII', 'XVIII', 'XIX', 'XX', 'XXI', 'XXII']):
+                # Capítulo CID
+                df_a = df_f[df_f['_chapter'] == agravo]
+            elif hasattr(cc, 'SYNDROME_DEFS') and agravo in cc.SYNDROME_DEFS:
+                # Síndrome: filtrar por códigos CID da definição
+                syn_codes = cc.SYNDROME_DEFS[agravo]
+                if 'cid_code' in df.columns:
+                    mask = df_f['cid_code'].apply(
+                        lambda x: any(str(x).startswith(c) for c in syn_codes)
+                        if pd.notna(x) else False)
+                    df_a = df_f[mask]
+                else:
+                    df_a = df_f
             else:
-                df_a = df_f  # Precisa de lógica específica
+                # CID individual: extrair código do nome (ex: "A90 - DENGUE...")
+                cid_code_match = agravo.split(' - ')[0].strip() if ' - ' in agravo else agravo
+                if 'cid_code' in df.columns:
+                    df_a = df_f[df_f['cid_code'] == cid_code_match]
+                else:
+                    df_a = df_f
+
+            if len(df_a) == 0:
+                continue
 
             # Somar quantidade por ano × SE (suporta dados pré-agregados)
             counts = df_a.groupby(['ano_epi', 'se_epi'])[col_qty].sum().reset_index(name='n')
