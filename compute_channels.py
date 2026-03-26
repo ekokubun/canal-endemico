@@ -508,7 +508,7 @@ CID_CHAPTERS = {
 
 def cid_to_chapter(cid_str):
     """Mapeia código ou descrição CID para capítulo."""
-    if not cid_str or not isinstance(cid_str, str):
+    if cid_str is None or not isinstance(cid_str, str) or cid_str == '':
         return None
 
     code = cid_str.strip().upper()
@@ -572,7 +572,7 @@ SINAN_MAP = {
 
 def cid_to_sinan(cid_str):
     """Mapeia CID para agravo SINAN. Retorna 'Outros' se não for SINAN."""
-    if not cid_str or not isinstance(cid_str, str):
+    if cid_str is None or not isinstance(cid_str, str) or cid_str == '':
         return 'Outros'
 
     import re
@@ -596,7 +596,7 @@ def cid_to_sinan(cid_str):
 def extract_cid_code(desc):
     """Extrai código CID de uma descrição como 'A90 - DENGUE [DENGUE CLÁSSICO]'."""
     import re
-    if not desc or not isinstance(desc, str):
+    if desc is None or not isinstance(desc, str) or desc == '':
         return None
     m = re.match(r'^([A-Z]\d{2}(?:\.\d{1,2})?)\b', desc.strip().upper())
     if m:
@@ -705,6 +705,8 @@ def run_pipeline(input_file, populations, output_file,
 
         if agravos in ('all', 'sinan'):
             agg_sinan = aggregate_raw_data(df, col_date, 'cid_codigo', col_qty, group_by='sinan')
+            # Prefixar com "SINAN: " para identificação no dashboard
+            agg_sinan = {f"SINAN: {k}": v for k, v in agg_sinan.items()}
             results.update(agg_sinan)
 
         if agravos == 'all' or (isinstance(agravos, str) and agravos.startswith('top')):
