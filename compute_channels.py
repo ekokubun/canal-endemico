@@ -5630,6 +5630,40 @@ CHAPTER_KEYWORDS = {
     ],
 }
 
+# ── Definições de Síndromes e Sentinelas ────────────────────────────
+# Cada síndrome é definida como lista de prefixos de código CID
+# (match via str.startswith)
+SYNDROME_DEFS = {
+    # Sentinelas de Saúde Coletiva
+    "Saúde Mental":           ['F'],           # CID F00-F99 (cap. V)
+    "Acidentes de Trânsito":  ['V0', 'V1', 'V2', 'V3', 'V4',
+                               'V5', 'V6', 'V7', 'V8', 'V9'],  # V01-V99
+    "Tentativas de Suicídio": ['X6', 'X70', 'X71', 'X72', 'X73', 'X74',
+                               'X75', 'X76', 'X77', 'X78', 'X79',
+                               'X80', 'X81', 'X82', 'X83', 'X84'],  # X60-X84
+    "Agressões":              ['X85', 'X86', 'X87', 'X88', 'X89',
+                               'X90', 'X91', 'X92', 'X93', 'X94',
+                               'X95', 'X96', 'X97', 'X98', 'X99',
+                               'Y00', 'Y01', 'Y02', 'Y03', 'Y04',
+                               'Y05', 'Y06', 'Y07', 'Y08', 'Y09'],  # X85-Y09
+    # Síndromes compostas
+    "Gastroenterites (A09+K52)":    ['A09', 'K52'],
+    "Sínd. Gripal (IVAS+Febre)":    ['J00', 'J01', 'J02', 'J03',
+                                     'J04', 'J05', 'J06', 'R50'],
+    "Sínd. Respiratória (J09-J22)": ['J09', 'J10', 'J11', 'J12',
+                                     'J13', 'J14', 'J15', 'J16',
+                                     'J17', 'J18', 'J20', 'J21', 'J22'],
+    "Geniturinária (ITU+Cólica)":   ['N30', 'N39', 'N20', 'N21', 'N23'],
+    "Febril Inespecífica (R50)":    ['R50'],
+    "Exantemática (R21+B05-09)":    ['R21', 'B05', 'B06', 'B07', 'B08', 'B09'],
+    "Animais Peçonhentos":          ['X20', 'X21', 'X22', 'X23', 'X24', 'X25', 'T63'],
+    "Escorpionismo (X22+T632)":     ['X22', 'T63'],
+    "Dor Osteomuscular":            ['M54', 'M79', 'M25'],
+    "Cardiovascular Aguda":         ['I20', 'I21', 'I22', 'I24', 'I50', 'I63', 'I64'],
+    "Dermatológica Aguda":          ['L01', 'L02', 'L03', 'L04', 'L08', 'L50', 'L51', 'L53'],
+    "Acidentes de Trabalho":        ['W', 'X3'],
+}
+
 
 def desc_to_cid_code(desc):
     """Mapeia descrição CID (DATASUS) para código CID-10.
@@ -5978,6 +6012,24 @@ def run_pipeline(input_file, populations, output_file,
                 agg.columns = ['ano', 'se', 'casos']
                 agg = agg[agg['se'] <= MAX_SE]
                 results[name] = agg
+
+        # ── Síndromes e sentinelas de saúde coletiva ──────────────────
+        if agravos == 'all' and 'cid_codigo' in df.columns:
+            for syn_name, syn_prefixes in SYNDROME_DEFS.items():
+                mask = df['cid_codigo'].apply(
+                    lambda x: any(str(x).startswith(p) for p in syn_prefixes)
+                    if pd.notna(x) else False
+                )
+                df_syn = df[mask]
+                if len(df_syn) > 0:
+                    agg_syn = df_syn.groupby(['ano_epi', 'semana_epi'])[col_qty].sum().reset_index()
+                    agg_syn.columns = ['ano', 'se', 'casos']
+                    agg_syn = agg_syn[agg_syn['se'] <= MAX_SE]
+                    if len(agg_syn) > 0 and agg_syn['casos'].sum() > 0:
+                        results[syn_name] = agg_syn
+            syn_ct = sum(1 for k in results if k in SYNDROME_DEFS)
+            if syn_ct > 0:
+                print(f"   → {syn_ct} síndromes/sentinelas computadas")
 
     else:
         # Fallback: poucos códigos CID → usar descrições + palavras-chave
