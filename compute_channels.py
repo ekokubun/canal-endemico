@@ -51,6 +51,8 @@ RNG_SEED   = 2026
 MAX_SE     = 52          # SE 53 excluída por padrão (poucos dados)
 FALLBACK_SHAPE = 0.1     # para SE com todos os anos = 0
 FALLBACK_RATE  = 1.0
+# Anos excluídos da construção dos canais (implantação do sistema / dados inconsistentes)
+EXCLUDED_YEARS = [2021, 2022]
 
 # ── Funções auxiliares ────────────────────────────────────────────────
 
@@ -6053,6 +6055,8 @@ def run_pipeline(input_file, populations, output_file,
 
     all_channels = {}
     for i, (name, agg_df) in enumerate(results.items()):
+        # Filtrar anos excluídos (implantação / dados inconsistentes)
+        agg_df = agg_df[~agg_df['ano'].isin(EXCLUDED_YEARS)].copy()
         years_available = sorted(agg_df['ano'].unique())
         if len(years_available) < 1:
             continue
