@@ -1,11 +1,17 @@
-name: Atualizar Dashboard Epidemiológico
-
+name: Atualizar Dashboard Epidemiologico
 on:
-  # Roda toda segunda-feira às 8h (horário de Brasília = 11:00 UTC)
+  # Fallback diario: 5h BRT (8h UTC) � caso o GAS nao dispare
   schedule:
-    - cron: '0 11 * * 1'
-  # Permite execução manual pelo GitHub
+    - cron: '0 8 * * *'
+  # Disparado pelo GAS logo apos extracao diaria do Maestro
   workflow_dispatch:
+    inputs:
+      force_recompute:
+        description: 'Recomputar canais endemicos (uso anual � virada de ano)'
+        required: false
+        default: 'false'
+        type: choice
+        options: ['false', 'true']
 
 permissions:
   contents: write
@@ -13,9 +19,8 @@ permissions:
 jobs:
   update:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repositório
+      - name: Checkout repositorio
         uses: actions/checkout@v4
 
       - name: Configurar Python
@@ -23,7 +28,7 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Instalar dependências
+      - name: Instalar dependencias
         run: pip install numpy pandas
 
       - name: Baixar CSV do Google Drive
@@ -31,14 +36,10 @@ jobs:
           GDRIVE_FILE_ID: ${{ secrets.GDRIVE_FILE_ID }}
         run: |
           echo "Baixando CSV do Google Drive..."
-
-          # Primeira tentativa (arquivos pequenos, download direto)
           curl -sL "https://drive.google.com/uc?export=download&id=${GDRIVE_FILE_ID}" \
             -o dados_ids.csv
-
-          # Se o arquivo for HTML (página de confirmação), extrair token e re-baixar
           if head -c 100 dados_ids.csv | grep -qi "html"; then
-            echo "Detectada página de confirmação. Re-baixando com token..."
+            echo "Detectada pagina de confirmacao. Re-baixando com token..."
             CONFIRM=$(curl -sc /tmp/gcookie \
               "https://drive.google.com/uc?export=download&id=${GDRIVE_FILE_ID}" \
               | grep -oP 'confirm=\K[^&]+' || echo "t")
@@ -46,44 +47,47 @@ jobs:
               "https://drive.google.com/uc?export=download&confirm=${CONFIRM}&id=${GDRIVE_FILE_ID}" \
               -o dados_ids.csv
           fi
-
-          # Validar que é um CSV real
           LINHAS=$(wc -l < dados_ids.csv)
           echo "Arquivo baixado: ${LINHAS} linhas"
           echo "Primeiras 3 linhas:"
           head -3 dados_ids.csv
-
           if head -c 100 dados_ids.csv | grep -qi "html"; then
-            echo "ERRO: Arquivo baixado é HTML, não CSV!"
-            echo "Verifique se o arquivo está compartilhado como 'Qualquer pessoa com o link'."
+            echo "ERRO: Arquivo baixado e HTML, nao CSV!"
             exit 1
           fi
-
           if [ "$LINHAS" -lt 10 ]; then
-            echo "ERRO: CSV tem menos de 10 linhas. Verifique o GDRIVE_FILE_ID."
+            echo "ERRO: CSV tem menos de 10 linhas."
             exit 1
           fi
 
-      - name: Executar pipeline completo
+      - name: Executar pipeline (canais fixos por padrao)
         run: |
+          EXTRA_FLAG=""
+          if [ "${{ github.event.inputs.force_recompute }}" = "true" ]; then
+            EXTRA_FLAG="--force-recompute"
+            echo "Modo: RECOMPUTE ANUAL de canais"
+          else
+            echo "Modo: atualizacao diaria com canais fixos"
+          fi
           python pipeline.py dados_ids.csv \
             --pop 210000 \
-            --output index.html
+            --output index.html \
+            $EXTRA_FLAG
           echo "Dashboard gerado: $(du -h index.html | cut -f1)"
 
       - name: Commit e push
         run: |
           git config user.name "GitHub Actions Bot"
           git config user.email "actions@github.com"
-
-          # Verifica se houve mudança
-          if git diff --quiet index.html 2>/dev/null; then
-            echo "Sem alterações no dashboard. Nada a commitar."
+          # channel_data.json (canais fixos � so muda se --force-recompute)
+          # index.html (atualizado diariamente com novos dados)
+          git add index.html
+          [ -f channel_data.json ] && git add channel_data.json || true
+          if git diff --cached --quiet; then
+            echo "Sem alteracoes. Nada a commitar."
           else
-            git add index.html
             HOJE=$(TZ=America/Sao_Paulo date '+%d/%m/%Y %H:%M')
-            git commit -m "Atualização automática do dashboard — ${HOJE}"
+            git commit -m "Atualizacao automatica do dashboard � ${HOJE}"
             git push
             echo "Dashboard atualizado e publicado!"
           fi
-
