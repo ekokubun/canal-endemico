@@ -30,7 +30,7 @@ const AGE_GROUP_DATA = {"Todos os atendimentos":{"Bebês (0-1)":{"2021":{"23":1,
       Tooltip, ResponsiveContainer, ReferenceLine, Cell, BarChart,
     } = Recharts;
 
-        const CATEGORIES = {"capitulos": ["I - Doenças infecciosas e parasitárias", "III - Sangue e órgãos hematopoéticos", "IV - Endócrinas, nutricionais e metabólicas", "V - Transtornos mentais", "VI - Sistema nervoso", "VII - Olho e anexos", "IX - Aparelho circulatório", "X - Aparelho respiratório", "XI - Aparelho digestivo", "XII - Pele e tecido subcutâneo", "XIII - Sistema osteomuscular", "XIV - Aparelho geniturinário", "XVIII - Sintomas e sinais", "XIX - Lesões e causas externas", "XX - Causas externas de morbidade", "XXI - Fatores que influenciam o estado de saúde"], "cids": ["Total de atendimentos", "Gastroenterites (A09+K52)", "A09 - DIARREIA E GASTROENTERITE DE ORIGEM INFECCIOSA PRESUMIVEL", "A90 - DENGUE [DENGUE CLASSICO]", "Geniturinária (ITU+Cólica)", "M54.5 - DOR LOMBAR BAIXA", "J00 - NASOFARINGITE AGUDA [RESFRIADO COMUM]", "R05 - TOSSE", "J03.9 - AMIGDALITE AGUDA NAO ESPECIFICADA", "M79.1 - MIALGIA", "R11 - NAUSEA E VOMITOS", "INFECCOES AGUDAS DAS VIAS AEREAS SUPERIORES DE LOCALIZACOES MULTIPLAS E NAO ESPECIFICADAS", "R10 - DOR ABDOMINAL E PELVICA", "R52.0 - DOR AGUDA", "R51 - CEFALEIA", "Z00.0 - EXAME MEDICO GERAL", "Z53 - PROCEDIMENTO NAO REALIZADO DEVIDO A DECISAO DO PACIENTE POR OUTRAS RAZOES E AS NAO ESPECIFICADAS", "M54 - DORSALGIA", "M79.6 - DOR EM MEMBRO", "R53 - MAL ESTAR, FADIGA", "INFECCAO AGUDA DAS VIAS AEREAS SUPERIORES NAO ESPECIFICADA", "Febril Inespecífica (R50)", "INFECCAO VIRAL NAO ESPECIFICADA", "I10 - HIPERTENSAO ESSENCIAL (PRIMARIA)", "Exantemática (R21+B05-09)", "Escorpionismo (X22+T632)", "SINAN: Dengue", "SINAN: Diarréia/gastroenterite", "SINAN: Influenza NE", "SINAN: Pneumonia NE", "SINAN: Sífilis NE"], "sindromes": ["Sínd. Gripal (IVAS+Febre)", "Sínd. Respiratória (J09-J22)", "Febril Inespecífica (R50)", "Exantemática (R21+B05-09)", "Gastroenterites (A09+K52)", "Dor Osteomuscular", "Cardiovascular Aguda", "Geniturinária (ITU+Cólica)", "Saúde Mental", "Animais Peçonhentos", "Escorpionismo (X22+T632)", "Dermatológica Aguda", "Acidentes de Trabalho", "Acidentes de Trânsito", "Agressões", "Tentativas de Suicídio"]};
+        const CATEGORIES = {"capitulos":["I - Doenças infecciosas e parasitárias","III - Sangue e órgãos hematopoéticos","IV - Endócrinas, nutricionais e metabólicas","V - Transtornos mentais","VI - Sistema nervoso","VII - Olho e anexos","IX - Aparelho circulatório","X - Aparelho respiratório","XI - Aparelho digestivo","XII - Pele e tecido subcutâneo","XIII - Sistema osteomuscular","XIV - Aparelho geniturinário","XVIII - Sintomas e sinais","XIX - Lesões e causas externas","XX - Causas externas de morbidade","XXI - Fatores que influenciam o estado de saúde"],"cids":["Total de atendimentos","Gastroenterites (A09+K52)","A09 - DIARREIA E GASTROENTERITE DE ORIGEM INFECCIOSA PRESUMIVEL","A90 - DENGUE [DENGUE CLASSICO]","Geniturinária (ITU+Cólica)","M54.5 - DOR LOMBAR BAIXA","J00 - NASOFARINGITE AGUDA [RESFRIADO COMUM]","R05 - TOSSE","J03.9 - AMIGDALITE AGUDA NAO ESPECIFICADA","M79.1 - MIALGIA","R11 - NAUSEA E VOMITOS","INFECCOES AGUDAS DAS VIAS AEREAS SUPERIORES DE LOCALIZACOES MULTIPLAS E NAO ESPECIFICADAS","R10 - DOR ABDOMINAL E PELVICA","R52.0 - DOR AGUDA","R51 - CEFALEIA","Z00.0 - EXAME MEDICO GERAL","Z53 - PROCEDIMENTO NAO REALIZADO DEVIDO A DECISAO DO PACIENTE POR OUTRAS RAZOES E AS NAO ESPECIFICADAS","M54 - DORSALGIA","M79.6 - DOR EM MEMBRO","R53 - MAL ESTAR, FADIGA","INFECCAO AGUDA DAS VIAS AEREAS SUPERIORES NAO ESPECIFICADA","Febril Inespecífica (R50)","INFECCAO VIRAL NAO ESPECIFICADA","I10 - HIPERTENSAO ESSENCIAL (PRIMARIA)","Exantemática (R21+B05-09)","Escorpionismo (X22+T632)","SINAN: Dengue","SINAN: Diarréia/gastroenterite","SINAN: Influenza NE","SINAN: Pneumonia NE","SINAN: Sífilis NE"],"sindromes":["Sínd. Gripal (IVAS+Febre)","Sínd. Respiratória (J09-J22)","Febril Inespecífica (R50)","Exantemática (R21+B05-09)","Gastroenterites (A09+K52)","Dor Osteomuscular","Cardiovascular Aguda","Geniturinária (ITU+Cólica)","Saúde Mental","Animais Peçonhentos","Escorpionismo (X22+T632)","Dermatológica Aguda","Acidentes de Trabalho","Acidentes de Trânsito","Agressões","Tentativas de Suicídio"],"secaoA":["Todos os atendimentos","A09 - DIARREIA E GASTROENTERITE DE ORIGEM INFECCIOSA PRESUMIVEL","J00 - NASOFARINGITE AGUDA [RESFRIADO COMUM]","M54.5 - DOR LOMBAR BAIXA","R05 - TOSSE","J03.9 - AMIGDALITE AGUDA NAO ESPECIFICADA","R11 - NAUSEA E VOMITOS","M79.1 - MIALGIA","R51 - CEFALEIA","R10 - DOR ABDOMINAL E PELVICA","R52.0 - DOR AGUDA","B34.9 - INFECCAO VIRAL NAO ESPECIFICADA","I10 - HIPERTENSAO ESSENCIAL (PRIMARIA)","M79.6 - DOR EM MEMBRO","R53 - MAL ESTAR, FADIGA","M54 - DORSALGIA","J06.9 - INFECCAO AGUDA DAS VIAS AEREAS SUPERIORES NAO ESPECIFICADA","J06 - INFECCOES AGUDAS DAS VIAS AEREAS SUPERIORES DE LOCALIZACOES MULTIPLAS E NAO ESPECIFICADAS","A90 - DENGUE [DENGUE CLASSICO]"],"secaoB":["Saúde Mental","Tentativas de Suicídio","Acidentes de Trânsito","Agressões"],"sindromes_col":["Sínd. Gripal (IVAS+Febre)","Sínd. Respiratória (J09-J22)","Gastroenterites (A09+K52)","Febril Inespecífica (R50)","Exantemática (R21+B05-09)","Geniturinária (ITU+Cólica)","Dor Osteomuscular","Cardiovascular Aguda","Dermatológica Aguda","Animais Peçonhentos","Escorpionismo (X22+T632)","Acidentes de Trabalho"],"imediata":["SINAN: Dengue","SINAN: Dengue hemorrágica","SINAN: Chikungunya","SINAN: Zika","SINAN: Febre amarela","SINAN: Raiva","SINAN: Sarampo","SINAN: Rubéola","SINAN: Coqueluche","SINAN: Influenza NE","SINAN: Influenza pandêmica","SINAN: Influenza identificada","A90 - DENGUE [DENGUE CLASSICO]"],"semanal":["SINAN: Tuberculose respiratória","SINAN: Tuberculose outros órgãos","SINAN: Tuberculose SNC","SINAN: Diarréia/gastroenterite","SINAN: Pneumonia NE","SINAN: Pneumonia viral","SINAN: Esquistossomose","SINAN: Malária NE","SINAN: Leishmaniose","SINAN: Doença de Chagas","SINAN: Leptospirose","SINAN: Sífilis NE","SINAN: Sífilis congênita","SINAN: Sífilis precoce","SINAN: Sífilis tardia","SINAN: Hepatite A","SINAN: Hepatite B","SINAN: Hepatite C/outras","SINAN: Hepatite crônica viral","SINAN: HIV/AIDS","SINAN: HIV NE","SINAN: Hanseníase","SINAN: Febre maculosa","SINAN: Febre Q","SINAN: Tétano acidental","SINAN: Febre tifóide","SINAN: Caxumba"]};
 
 const AGE_GROUPS = ["Bebês (0-1)", "Crianças (2-11)", "Adolescentes (12-17)", "Adultos jovens (18-39)", "Meia-idade (40-59)", "Idosos (60+)"];
 const AGE_COLORS = {
@@ -861,6 +861,7 @@ function App() {
   const [categoryFilter, setCategoryFilter] = useState("capitulos");
   const [activeTab, setActiveTab] = useState("dashboard");
   const [activeAgeGroups, setActiveAgeGroups] = useState([]);
+  const [sinExpanded, setSinExpanded] = useState(false);
 
   const channelData = DATA.channels[selectedAgravo];
   const years = channelData?.years || [];
@@ -940,8 +941,14 @@ function App() {
         </p>
         {/* Tab navigation */}
         <div style={{ display: "flex", gap: 0, marginTop: 20, justifyContent: "center" }}>
-          {[["dashboard", "Dashboard"], ["boletim", "Boletim Semanal"]].map(([key, label]) => (
-            <button key={key} onClick={() => setActiveTab(key)} style={{
+          {[["dashboard", "Canal Endêmico"], ["cids_prioritarios", "CIDs Prioritários"], ["notificacao", "Notificação Compulsória"], ["boletim", "Boletim Semanal"]].map(([key, label]) => (
+            <button key={key} onClick={() => {
+              const defaults = {dashboard: "capitulos", cids_prioritarios: "secaoA", notificacao: "imediata", boletim: null};
+              const cat = defaults[key];
+              if (cat) { setCategoryFilter(cat); setSelectedAgravo(CATEGORIES[cat].find(a => DATA.channels[a]) || CATEGORIES[cat][0]); }
+              setSelectedYear(null); setOverlayYears([]); setActiveAgeGroups([]); setSinExpanded(false);
+              setActiveTab(key);
+            }} style={{
               padding: "10px 28px", border: "none", cursor: "pointer",
               fontSize: 13, fontWeight: 600, fontFamily: "DM Sans, sans-serif",
               background: activeTab === key ? "rgba(129,140,248,0.2)" : "transparent",
@@ -955,21 +962,72 @@ function App() {
 
       {activeTab === "boletim" ? <BoletimTab /> : <>
 
-      {/* Filtro de categoria */}
-      <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap", justifyContent: "center" }}>
-        {[
-          ["capitulos", "Capítulos CID"],
-          ["cids", "CIDs Individuais"],
-          ["sindromes", "Síndromes"],
-        ].map(([key, label]) => (
-          <button key={key} onClick={() => { setCategoryFilter(key); setSelectedAgravo(CATEGORIES[key][0]); setSelectedYear(null); setOverlayYears([]); setActiveAgeGroups([]); }} style={{
-            padding: "8px 18px", borderRadius: 10, border: "none", cursor: "pointer",
-            fontSize: 13, fontWeight: 600, fontFamily: "DM Sans, sans-serif",
-            background: categoryFilter === key ? "rgba(129,140,248,0.3)" : "rgba(255,255,255,0.06)",
-            color: categoryFilter === key ? "#818cf8" : "#94a3b8",
-          }}>{label}</button>
-        ))}
-      </div>
+      {/* Filtro de categoria — varia por aba */}
+      {activeTab === "cids_prioritarios" ? (
+        <div>
+          <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap", justifyContent: "center" }}>
+            {[
+              ["secaoA", "Seção A — Clínicos"],
+              ["secaoB", "Seção B — Sentinelas"],
+            ].map(([key, label]) => (
+              <button key={key} onClick={() => { setCategoryFilter(key); setSelectedAgravo(CATEGORIES[key].find(a => DATA.channels[a]) || CATEGORIES[key][0]); setSelectedYear(null); setOverlayYears([]); setActiveAgeGroups([]); }} style={{
+                padding: "8px 18px", borderRadius: 10, border: "none", cursor: "pointer",
+                fontSize: 13, fontWeight: 600, fontFamily: "DM Sans, sans-serif",
+                background: categoryFilter === key ? "rgba(129,140,248,0.3)" : "rgba(255,255,255,0.06)",
+                color: categoryFilter === key ? "#818cf8" : "#94a3b8",
+              }}>{label}</button>
+            ))}
+            <button onClick={() => { setSinExpanded(v => !v); }} style={{
+              padding: "8px 18px", borderRadius: 10, border: "none", cursor: "pointer",
+              fontSize: 13, fontWeight: 600, fontFamily: "DM Sans, sans-serif",
+              background: sinExpanded ? "rgba(129,140,248,0.3)" : "rgba(255,255,255,0.06)",
+              color: sinExpanded ? "#818cf8" : "#94a3b8",
+            }}>Síndromes {sinExpanded ? "▲" : "▼"}</button>
+          </div>
+          {sinExpanded && (
+            <div style={{ display: "flex", gap: 6, marginBottom: 8, flexWrap: "wrap", justifyContent: "center", padding: "8px", background: "rgba(255,255,255,0.03)", borderRadius: 10 }}>
+              {CATEGORIES["sindromes_col"].map(a => (
+                <button key={a} onClick={() => { setCategoryFilter("sindromes_col"); setSelectedAgravo(a); setSelectedYear(null); setOverlayYears([]); }} style={{
+                  padding: "5px 12px", borderRadius: 8, border: "none", cursor: "pointer",
+                  fontSize: 11, fontFamily: "DM Sans, sans-serif",
+                  background: selectedAgravo === a ? "rgba(99,102,241,0.3)" : "rgba(255,255,255,0.04)",
+                  color: selectedAgravo === a ? "#a5b4fc" : "#94a3b8",
+                  border: selectedAgravo === a ? "1px solid rgba(99,102,241,0.5)" : "1px solid rgba(255,255,255,0.06)",
+                }}>{a.length > 40 ? a.substring(0, 37) + "..." : a}</button>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : activeTab === "notificacao" ? (
+        <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap", justifyContent: "center" }}>
+          {[
+            ["imediata", "⚡ Imediata (24h)"],
+            ["semanal", "📋 Semanal (7 dias)"],
+          ].map(([key, label]) => (
+            <button key={key} onClick={() => { setCategoryFilter(key); setSelectedAgravo(CATEGORIES[key].find(a => DATA.channels[a]) || CATEGORIES[key][0]); setSelectedYear(null); setOverlayYears([]); setActiveAgeGroups([]); }} style={{
+              padding: "8px 18px", borderRadius: 10, border: "none", cursor: "pointer",
+              fontSize: 13, fontWeight: 600, fontFamily: "DM Sans, sans-serif",
+              background: categoryFilter === key ? "rgba(129,140,248,0.3)" : "rgba(255,255,255,0.06)",
+              color: categoryFilter === key ? "#818cf8" : "#94a3b8",
+            }}>{label}</button>
+          ))}
+        </div>
+      ) : (
+        <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap", justifyContent: "center" }}>
+          {[
+            ["capitulos", "Capítulos CID"],
+            ["cids", "CIDs Individuais"],
+            ["sindromes", "Síndromes"],
+          ].map(([key, label]) => (
+            <button key={key} onClick={() => { setCategoryFilter(key); setSelectedAgravo(CATEGORIES[key][0]); setSelectedYear(null); setOverlayYears([]); setActiveAgeGroups([]); }} style={{
+              padding: "8px 18px", borderRadius: 10, border: "none", cursor: "pointer",
+              fontSize: 13, fontWeight: 600, fontFamily: "DM Sans, sans-serif",
+              background: categoryFilter === key ? "rgba(129,140,248,0.3)" : "rgba(255,255,255,0.06)",
+              color: categoryFilter === key ? "#818cf8" : "#94a3b8",
+            }}>{label}</button>
+          ))}
+        </div>
+      )}
 
       {/* Sub-botões dos agravos */}
       <div style={{ display: "flex", gap: 6, marginBottom: 16, flexWrap: "wrap", justifyContent: "center" }}>
@@ -984,8 +1042,18 @@ function App() {
         ))}
       </div>
 
+      {/* Sem dados para agravo selecionado */}
+      {!channelData && (
+        <div style={{ textAlign: "center", padding: "48px 24px", color: "#64748b" }}>
+          <div style={{ fontSize: 32, marginBottom: 12 }}>📊</div>
+          <div style={{ fontSize: 15, fontWeight: 600, color: "#94a3b8" }}>Sem dados disponíveis</div>
+          <div style={{ fontSize: 12, marginTop: 6 }}>Canal endêmico ainda não computado para <b style={{color:"#818cf8"}}>{selectedAgravo}</b></div>
+          <div style={{ fontSize: 11, marginTop: 4, color: "#475569" }}>Será disponibilizado na próxima execução do pipeline.</div>
+        </div>
+      )}
+
       {/* Seleção de ano + overlay */}
-      <div style={{ display: "flex", gap: 6, marginBottom: 12, flexWrap: "wrap", alignItems: "center" }}>
+      <div style={{ display: channelData ? "flex" : "none", gap: 6, marginBottom: 12, flexWrap: "wrap", alignItems: "center" }}>
         <span style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase", letterSpacing: 1 }}>
           Ano:
         </span>
