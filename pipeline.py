@@ -150,25 +150,11 @@ def classify_zone(value, thresholds):
 # Step 1: Rodar compute_channels.py
 # ══════════════════════════════════════════════════════════════════════
 
-def step1_compute_channels(csv_path, pop, channel_json='channel_data.json', force_recompute=False):
+def step1_compute_channels(csv_path, pop, channel_json='channel_data.json'):
     """Roda compute_channels.py para gerar os 58 canais principais."""
     print("\n" + "=" * 60)
     print("STEP 1: Computando canais endêmicos principais")
     print("=" * 60)
-
-
-    # Canais fixos: usar cache se disponivel (padrao durante o ano)
-    if not force_recompute and os.path.exists(channel_json):
-        print(f" -> Canais fixos carregados de: {channel_json}")
-        with open(channel_json, "r") as f:
-            data = json.load(f)
-        print(f" -> {len(data[chr(39)channels chr(39)])} canais fixos (sem recompute)")
-        return data
-
-    if force_recompute:
-        print(" -> --force-recompute: recalculando canais (uso anual)")
-    else:
-        print(f" -> {channel_json} nao encontrado - computando pela primeira vez")
 
     cmd = [
         sys.executable, 'compute_channels.py',
@@ -796,7 +782,6 @@ def main():
                         help='População do município (default: 210000)')
     parser.add_argument('--output', '-o', default='index.html',
                         help='HTML de saída (default: index.html)')
-    parser.add_argument('--force-recompute', action='store_true', help='Recomputar canais anuais')
     parser.add_argument('--template', default='index.html',
                         help='HTML template (default: index.html existente)')
     args = parser.parse_args()
@@ -809,7 +794,7 @@ def main():
     print(f"  Output: {args.output}")
 
     # Step 1
-    channel_data = step1_compute_channels(args.input, args.pop, force_recompute=args.force_recompute)
+    channel_data = step1_compute_channels(args.input, args.pop)
 
     # Step 2
     age_data = step2_age_group_data(args.input, channel_data)
