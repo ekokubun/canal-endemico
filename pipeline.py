@@ -24,6 +24,303 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+STEP 0 — Pré-processamento de CSV bruto Maestro 187
+====================================================
+Cole este bloco no pipeline.py ANTES da função step1_compute_channels().
+Também adicione a chamada no main() conforme indicado no final deste arquivo.
+ 
+Entrada:  CSV bruto do Maestro 187
+          Data;Código US;Unidade de Saúde;Usuário;Sexo;Faixa etária;C.E.P.;C.I.D.;Descrição - C.I.D.;Quantidade
+ 
+Saída:    CSV processado compatível com o pipeline
+          ano_epi;semana_epi;faixa_etaria;cid_codigo;cid_descricao;quantidade
+ 
+Aplica:
+  - Detecção automática de formato (bruto vs agregado)
+  - Pseudonimização SHA-256 + salt (LGPD Art.13 §4°)
+  - Decodificação de idade IDS → faixa etária (200+M=meses, 300+D=dias)
+  - Cálculo de semana epidemiológica MS/OMS (dom-sáb)
+  - Remoção de duplicatas (data+unidade+pseudo_id+cid)
+  - Filtragem de linhas totalizadoras
+  - Agregação final: ano_epi × semana_epi × faixa_etaria × cid → quantidade
+"""
+ 
+import hashlib
+import datetime
+import re
+from pathlib import Path
+ 
+import numpy as np
+import pandas as pd
+ 
+# ── Configuração ──────────────────────────────────────────────────────────────
+PSEUDO_SALT = 'upa-rc-2026'   # mesmo salt do GAS — resultados idênticos
+ 
+# ── Funções auxiliares ────────────────────────────────────────────────────────
+ 
+def _pseudo_id(uid: str) -> str:
+    """SHA-256 + salt → 12 chars hex. Idêntico ao GAS pseudoId_()."""
+    key = PSEUDO_SALT + ':' + str(uid).strip()
+    return hashlib.sha256(key.encode('utf-8')).hexdigest()[:12]
+ 
+ 
+def _decode_age(raw) -> str:
+    """
+    Decodifica idade codificada do IDS:
+      0-199  = anos
+      200-299 = meses (200 + M)
+      300+    = dias (300 + D)
+    Retorna faixa etária string (ex: '30-39').
+    """
+    try:
+        v = int(str(raw).strip())
+        if v >= 300:   years = (v - 300) / 365.25
+        elif v >= 200: years = (v - 200) / 12
+        else:          years = float(v)
+    except (ValueError, TypeError):
+        return 'NI'
+ 
+    if years < 0:   return 'NI'
+    if years < 1:   return '<1'
+    if years < 5:   return '1-4'
+    if years < 10:  return '5-9'
+    if years < 15:  return '10-14'
+    if years < 20:  return '15-19'
+    if years < 30:  return '20-29'
+    if years < 40:  return '30-39'
+    if years < 50:  return '40-49'
+    if years < 60:  return '50-59'
+    if years < 70:  return '60-69'
+    if years < 80:  return '70-79'
+    return '80+'
+ 
+ 
+def _epi_week(date_str: str):
+    """
+    Semana epidemiológica MS/OMS (domingo–sábado).
+    Idêntica ao epi_week() do compute_channels.py.
+    Retorna (ano_epi, se) ou (None, None) se inválido.
+    """
+    try:
+        s = str(date_str).strip()
+        if '/' in s:
+            p = s.split('/')
+            d = datetime.date(int(p[2]), int(p[1]), int(p[0]))
+        elif '-' in s:
+            p = s.split('-')
+            d = datetime.date(int(p[0]), int(p[1]), int(p[2]))
+        else:
+            return None, None
+ 
+        dow_sun  = (d.weekday() + 1) % 7          # dom=0 … sáb=6
+        sun      = d - datetime.timedelta(days=dow_sun)
+        wed      = sun + datetime.timedelta(days=3)
+        year     = wed.year
+        jan1     = datetime.date(year, 1, 1)
+        j1d      = (jan1.weekday() + 1) % 7
+        first_sun = (jan1 - datetime.timedelta(days=j1d)
+                     if j1d <= 3
+                     else jan1 + datetime.timedelta(days=7 - j1d))
+        se = (sun - first_sun).days // 7 + 1
+        return year, max(1, min(53, se))
+    except Exception:
+        return None, None
+ 
+ 
+def _decode_sexo(code: str) -> str:
+    s = str(code).strip()
+    if s == '1': return 'MASCULINO'
+    if s == '2': return 'FEMININO'
+    return s or 'NI'
+ 
+ 
+def _find_col(df: pd.DataFrame, candidates: list) -> str | None:
+    """Localiza coluna pelo nome (tolerante a acentos e variações)."""
+    for c in df.columns:
+        cl = c.lower().strip()
+        for cand in candidates:
+            if cand in cl:
+                return c
+    return None
+ 
+ 
+def _is_maestro187_raw(df: pd.DataFrame) -> bool:
+    """
+    Detecta se o CSV é formato bruto Maestro 187.
+    Critério: tem coluna 'data' + ('usuário' ou 'código us').
+    """
+    cols = [c.lower().strip() for c in df.columns]
+    has_data  = any('data' == c for c in cols)
+    has_user  = any('usu' in c for c in cols)
+    has_unit  = any('código us' in c or 'codigo us' in c for c in cols)
+    # Formato agregado tem ano_epi — não é bruto
+    has_agg   = any('ano_epi' in c for c in cols)
+    return has_data and (has_user or has_unit) and not has_agg
+ 
+ 
+# ── STEP 0 ────────────────────────────────────────────────────────────────────
+ 
+def step0_preprocess_if_needed(csv_path: str) -> str:
+    """
+    Verifica se o CSV de entrada é formato bruto Maestro 187.
+    Se sim: pré-processa e salva versão processada, retorna novo caminho.
+    Se não: retorna o caminho original (já é formato agregado).
+ 
+    O arquivo processado é salvo como:
+      {original_stem}_processed.csv
+ 
+    Parameters
+    ----------
+    csv_path : str
+        Caminho do CSV de entrada.
+ 
+    Returns
+    -------
+    str
+        Caminho do CSV a usar nas etapas seguintes.
+    """
+    print("\n" + "=" * 60)
+    print("STEP 0: Verificando formato do CSV de entrada")
+    print("=" * 60)
+ 
+    path = Path(csv_path)
+ 
+    # Tentar ler com diferentes encodings
+    df = None
+    for enc in ['utf-8', 'latin-1', 'cp1252']:
+        try:
+            df = pd.read_csv(csv_path, sep=';', dtype=str,
+                             encoding=enc, skipinitialspace=True)
+            print(f"  Encoding: {enc}")
+            break
+        except Exception:
+            continue
+ 
+    if df is None:
+        print("  ERRO: não foi possível ler o CSV. Prosseguindo sem Step 0.")
+        return csv_path
+ 
+    # Limpar nomes de colunas
+    df.columns = [c.strip() for c in df.columns]
+    for col in df.columns:
+        df[col] = df[col].astype(str).str.strip()
+ 
+    print(f"  Colunas: {list(df.columns)}")
+ 
+    if not _is_maestro187_raw(df):
+        print("  → Formato já processado (agregado). Pulando Step 0.")
+        return csv_path
+ 
+    print("  → Formato bruto Maestro 187 detectado. Pré-processando...")
+ 
+    # ── Filtrar linhas válidas ────────────────────────────────────────
+    col_data = _find_col(df, ['data'])
+    if not col_data:
+        print("  ERRO: coluna 'Data' não encontrada.")
+        return csv_path
+ 
+    df = df[df[col_data].str.match(r'\d{2}/\d{2}/\d{4}', na=False)].copy()
+    print(f"  Linhas com data válida: {len(df)}")
+ 
+    if len(df) == 0:
+        print("  ERRO: nenhuma linha válida encontrada.")
+        return csv_path
+ 
+    # ── Mapear colunas ────────────────────────────────────────────────
+    col_unit_cd = _find_col(df, ['código us', 'codigo us', 'cod us'])
+    col_unit_nm = _find_col(df, ['unidade de saúde', 'unidade de saude',
+                                  'unidade saude', 'unidade'])
+    col_user    = _find_col(df, ['usuário', 'usuario'])
+    col_sexo    = _find_col(df, ['sexo'])
+    col_faixa   = _find_col(df, ['faixa etária', 'faixa etaria', 'faixa'])
+    col_cep     = _find_col(df, ['c.e.p', 'cep'])
+    col_cid     = _find_col(df, ['c.i.d.', 'cid_codigo', 'cid'])
+    col_desc    = _find_col(df, ['descrição - c.i.d', 'descricao - c.i.d',
+                                  'descrição', 'descricao', 'cid_descricao'])
+ 
+    print(f"  Mapeamento detectado:")
+    print(f"    data={col_data}, unid_cd={col_unit_cd}, unid_nm={col_unit_nm}")
+    print(f"    user={col_user}, sexo={col_sexo}, faixa={col_faixa}")
+    print(f"    cep={col_cep}, cid={col_cid}, desc={col_desc}")
+ 
+    # ── Processar ─────────────────────────────────────────────────────
+    rows = []
+    erros = 0
+ 
+    for _, r in df.iterrows():
+        data_str = r[col_data].strip()
+        if not re.match(r'\d{2}/\d{2}/\d{4}', data_str):
+            continue
+ 
+        ano_epi, se_epi = _epi_week(data_str)
+        if not ano_epi:
+            erros += 1
+            continue
+ 
+        unit_cd  = r[col_unit_cd].strip()  if col_unit_cd else ''
+        unit_nm  = r[col_unit_nm].strip()  if col_unit_nm else ''
+        user     = r[col_user].strip()     if col_user    else ''
+        sexo_raw = r[col_sexo].strip()     if col_sexo    else ''
+        faixa_raw= r[col_faixa].strip()    if col_faixa   else ''
+        cep_raw  = r[col_cep].strip()      if col_cep     else ''
+        cid_cd   = r[col_cid].strip()      if col_cid     else ''
+        cid_desc = r[col_desc].strip()     if col_desc    else ''
+ 
+        rows.append([
+            data_str,
+            ano_epi,
+            se_epi,
+            unit_cd,
+            unit_nm,
+            _pseudo_id(user) if user else '',
+            _decode_sexo(sexo_raw),
+            _decode_age(faixa_raw),
+            ''.join(c for c in cep_raw if c.isdigit()),
+            cid_cd,
+            cid_desc,
+            1
+        ])
+ 
+    HEADERS = ['data', 'ano_epi', 'semana_epi', 'unidade_codigo', 'unidade_nome',
+               'pseudo_id', 'sexo', 'faixa_etaria', 'cep', 'cid_codigo',
+               'cid_descricao', 'quantidade']
+ 
+    out = pd.DataFrame(rows, columns=HEADERS)
+    print(f"  Linhas processadas: {len(out)} (erros SE: {erros})")
+ 
+    # ── Remover duplicatas ────────────────────────────────────────────
+    before = len(out)
+    out['_key'] = (out['data'] + '|' + out['unidade_codigo'] + '|' +
+                   out['pseudo_id'] + '|' + out['cid_descricao'])
+    out = out[~out.duplicated('_key', keep='first')].drop(columns=['_key'])
+    dupes = before - len(out)
+    print(f"  Duplicatas removidas: {dupes}")
+    print(f"  Linhas únicas: {len(out)}")
+ 
+    # ── Agregar para formato do pipeline ─────────────────────────────
+    # O pipeline espera: ano_epi;semana_epi;faixa_etaria;cid_codigo;cid_descricao;quantidade
+    agg = (out.groupby(['ano_epi', 'semana_epi', 'faixa_etaria',
+                        'cid_codigo', 'cid_descricao'], as_index=False)
+              .agg(quantidade=('quantidade', 'sum')))
+ 
+    print(f"  Linhas após agregação: {len(agg)}")
+ 
+    # ── Estatísticas ──────────────────────────────────────────────────
+    anos = sorted(out['ano_epi'].unique())
+    print(f"  Anos presentes: {anos}")
+    se_range = f"SE {out['semana_epi'].min()} a SE {out['semana_epi'].max()}"
+    print(f"  Semanas: {se_range}")
+    print(f"  Atendimentos únicos: {(out['data']+'|'+out['pseudo_id']).nunique()}")
+ 
+    # ── Salvar arquivo processado ─────────────────────────────────────
+    out_path = path.parent / (path.stem + '_processed.csv')
+    agg.to_csv(out_path, sep=';', index=False, encoding='utf-8')
+    size_kb = out_path.stat().st_size / 1024
+    print(f"  → Salvo: {out_path} ({size_kb:.1f} KB)")
+ 
+    return str(out_path)
+ 
+ 
 
 # ══════════════════════════════════════════════════════════════════════
 # Config
