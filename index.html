@@ -644,7 +644,14 @@ function BoletimTab() {
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
             <thead>
               <tr style={{ borderBottom: "2px solid rgba(255,255,255,0.1)" }}>
-                {["Agravo", "Prio", "Total 2025", "Média 22-24", "Var%", "Pico 2025", "SE\u003eP90", "2026 (parcial)", "Últ. SE"].map(h => (
+                {["Agravo", "Prio", "Total 2025", "Média 22-24", "Var%", "Pico 2025", "SE\u003eP90", (`SE1-${(() => {
+                    const anosH = [2023,2024,2025];
+                    const ch0 = DATA.channels[Object.keys(DATA.channels)[0]];
+                    const mediaH = {};
+                    ch0.raw.forEach(r => { const v = anosH.map(y=>r['c'+y]||0); mediaH[r.se]=v.reduce((a,b)=>a+b,0)/anosH.length; });
+                    const secs = ch0.raw.filter(r=>(r.c2026||0)>0 && (r.c2026/Math.max(1,mediaH[r.se]))>=0.70).map(r=>r.se);
+                    return secs.length > 0 ? Math.max(...secs) : '?';
+                  })()} /2026`), "Últ. SE completa"].map(h => (
                   <th key={h} style={{ padding: "8px 5px", textAlign: "left", color: "#94a3b8",
                     fontWeight: 600, whiteSpace: "nowrap", fontSize: 11 }}>{h}</th>
                 ))}
@@ -831,7 +838,14 @@ function BoletimTab() {
                     <div style={{ fontSize: 12, color: "#cbd5e1" }}>{item.sazonalidade}</div>
                   </div>
                   <div>
-                    <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 4, fontWeight: 600 }}>Última SE ({item.se_2026})</div>
+                    <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 4, fontWeight: 600 }}>Últ. SE completa ({(() => {
+                        const anosH = [2023,2024,2025];
+                        const ch = DATA.channels[item.name] || DATA.channels[Object.keys(DATA.channels)[0]];
+                        const mediaH = {};
+                        ch.raw.forEach(r => { const v = anosH.map(y=>r['c'+y]||0); mediaH[r.se]=v.reduce((a,b)=>a+b,0)/anosH.length; });
+                        const secs = ch.raw.filter(r=>(r.c2026||0)>0 && (r.c2026/Math.max(1,mediaH[r.se]))>=0.70).map(r=>r.se);
+                        return secs.length > 0 ? Math.max(...secs) : item.se_2026;
+                      })()})</div>
                     <span style={{ padding: "2px 8px", borderRadius: 4, fontSize: 11, fontWeight: 700,
                       background: zonaCor[item.ultima_se_zona] ? zonaCor[item.ultima_se_zona] + "33" : "rgba(255,255,255,0.06)",
                       color: zonaCor[item.ultima_se_zona] || "#94a3b8" }}>
