@@ -6193,6 +6193,11 @@ if __name__ == '__main__':
     except json.JSONDecodeError:
         pop = int(args.pop)
 
+    # Processar --base-hist-years
+    bhy = None
+    if args.base_hist_years:
+        bhy = [int(y.strip()) for y in args.base_hist_years.split(",")]
+
     run_pipeline(
         args.input, pop, args.output,
         agravos=args.agravos,
@@ -6200,4 +6205,6 @@ if __name__ == '__main__':
         col_cid=args.col_cid,
         col_qty=args.col_qty,
         monitor_year=args.monitor_year,
+        base_hist_years=bhy,
+        skip_channel_estimation=args.skip_channel_estimation,
     )
