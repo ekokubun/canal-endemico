@@ -458,15 +458,19 @@ function BoletimTab() {
     </div>
   );
 
-  const ZonaBar = ({cls, label}) => {
+  const ZonaBar = ({cls, label, totalSEs}) => {
     if (!cls) return null;
     const total = Object.values(cls).reduce((a,b) => a+b, 0);
     if (total === 0) return null;
     const zones = ["sucesso","seguranca","alerta","epidemico","emergencia"];
+    const barPct = totalSEs ? ((total / totalSEs) * 100).toFixed(1) + "%" : "100%";
     return (
       <div style={{ marginBottom: 6 }}>
         {label && <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 4 }}>{label}</div>}
-        <div style={{ display: "flex", height: 22, borderRadius: 6, overflow: "hidden", border: "1px solid rgba(255,255,255,0.08)" }}>
+        <div style={{ position: "relative", height: 22, borderRadius: 6,
+          background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}>
+          <div style={{ display: "flex", width: barPct, height: "100%",
+            borderRadius: 6, overflow: "hidden" }}>
           {zones.map(z => {
             const pct = (cls[z] / total) * 100;
             if (pct === 0) return null;
@@ -476,6 +480,7 @@ function BoletimTab() {
               minWidth: pct > 8 ? "auto" : 0,
             }}>{pct > 12 ? cls[z] : ""}</div>;
           })}
+          </div>
         </div>
         <div style={{ display: "flex", gap: 10, marginTop: 4, flexWrap: "wrap" }}>
           {zones.map(z => cls[z] > 0 ? (
@@ -775,13 +780,13 @@ function BoletimTab() {
 
                 <div style={{ marginBottom: 10 }}>
                   <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 4, fontWeight: 600 }}>Classificação semanal 2025</div>
-                  <ZonaBar cls={item.classificacao_2025} />
+                  <ZonaBar cls={item.classificacao_2025} totalSEs={52} />
                 </div>
 
                 {item.classificacao_2026 && (
                   <div style={{ marginBottom: 10 }}>
-                    <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 4, fontWeight: 600 }}>Classificação semanal 2026 (parcial)</div>
-                    <ZonaBar cls={item.classificacao_2026} />
+                    <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 4, fontWeight: 600 }}>Classificação semanal 2026 (SE 1–{(() => { const j4=new Date(new Date().getFullYear(),0,4); const s1=new Date(j4-j4.getDay()*86400000); const h=new Date(); const sc=Math.floor((h-s1)/(7*86400000)); const se=new Date(s1.getTime()+(sc)*7*86400000+6*86400000); return se<h?sc+1:sc; })()})</div>
+                    <ZonaBar cls={item.classificacao_2026} totalSEs={52} />
                   </div>
                 )}
 
