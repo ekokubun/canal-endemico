@@ -508,7 +508,20 @@ function BoletimTab() {
           Canais Endêmicos Bayesianos — UPAs Rio Claro/SP
         </p>
         <p style={{ color: "#64748b", fontSize: 12, margin: "0 0 16px" }}>
-          SE 0/2026 — 16 de março de 2026 · Dados: IDS Saúde (Relatório 187) · Modelo Gamma-Poisson Hierárquico
+          {(() => {
+            const m = DATA.metadata;
+            const se = m.se_atual || 0;
+            const ano = m.ano_atual || new Date().getFullYear();
+            const se1 = new Date(ano === 2026 ? "2025-12-29" : `${ano-1}-12-29`);
+            const seStart = new Date(se1.getTime() + (se-1)*7*86400000);
+            const seEnd   = new Date(seStart.getTime() + 6*86400000);
+            const fmt = (d, showYear) => d.toLocaleDateString("pt-BR", {
+              day: "numeric", month: "long", ...(showYear ? {year:"numeric"} : {})
+            });
+            return se > 0
+              ? `SE ${se}/${ano} — ${fmt(seStart)} a ${fmt(seEnd, true)} · Dados de atendimentos por hipótese diagnóstica · Canais epidemiológicos: Modelo Gamma-Poisson Hierárquico`
+              : `Dados de atendimentos por hipótese diagnóstica · Canais epidemiológicos: Modelo Gamma-Poisson Hierárquico`;
+          })()}
         </p>
         <button onClick={downloadDocx} style={{
           padding: "10px 24px", borderRadius: 10, border: "none", cursor: "pointer",
