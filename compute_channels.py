@@ -6122,7 +6122,8 @@ def run_pipeline(input_file, populations, output_file,
         ch = compute_endemic_channel(
             agg_df, populations,
             agravo_name=name,
-            leave_one_out=(len(years_available) >= 3),
+            leave_one_out=False,
+            base_hist_years=BASE_HIST_YEARS,
             use_mle=True,
             monitor_year=monitor_year
         )
