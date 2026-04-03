@@ -254,7 +254,8 @@ def compute_endemic_channel(
     df_agg,
     populations,
     agravo_name="Todos",
-    leave_one_out=True,
+    leave_one_out=False,
+    base_hist_years=None,
     use_mle=True,
     monitor_year=None
 ):
