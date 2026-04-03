@@ -318,7 +318,12 @@ def compute_endemic_channel(
     params = {}
 
     for mon_year in monitor_years:
-        if leave_one_out:
+        if base_hist_years:
+            # Base histórica fixa: calibra sempre com os mesmos anos
+            train_years = [y for y in base_hist_years if y in years]
+            if len(train_years) < 2:
+                train_years = years  # fallback
+        elif leave_one_out:
             train_years = [y for y in years if y != mon_year]
         else:
             train_years = years
