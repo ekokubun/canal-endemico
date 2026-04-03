@@ -6171,6 +6171,10 @@ if __name__ == '__main__':
                         help='Populações por ano (JSON dict) ou valor único')
     parser.add_argument('--output', '-o', default='channel_data.json',
                         help='JSON de saída (default: channel_data.json)')
+    parser.add_argument('--base-hist-years', default=None,
+                        help='Anos históricos fixos separados por vírgula (ex: 2023,2024,2025)')
+    parser.add_argument('--skip-channel-estimation', action='store_true',
+                        help='Atualiza dados sem recalcular limiares dos canais (usa channel_data.json existente)')
     parser.add_argument('--agravos', default='all',
                         help='Agrupamento: all, chapters, sinan, top_N')
     parser.add_argument('--monitor-year', type=int, default=None,
