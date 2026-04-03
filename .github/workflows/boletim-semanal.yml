@@ -1,0 +1,87 @@
+name: Boletim Epidemiológico Semanal
+
+on:
+  # Toda segunda-feira às 8h Brasília (11h UTC)
+  schedule:
+    - cron: '0 11 * * 1'
+
+  # Execução manual pelo GitHub
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  boletim:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repositório
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Instalar dependências
+        run: pip install pandas numpy python-docx
+
+      - name: Identificar SE anterior completa
+        id: se_info
+        run: |
+          python3 << 'PYEOF'
+          import datetime, os
+
+          today = datetime.date.today()
+          # Segunda-feira atual — SE anterior terminou no sábado passado
+          # SE epidemiológica começa no domingo
+          # "SE anterior completa" = a que terminou no último sábado
+          last_saturday = today - datetime.timedelta(days=2)  # segunda - 2 = sábado
+          last_sunday   = last_saturday - datetime.timedelta(days=6)
+
+          # Calcular número da SE: SE1/2026 começa em 29/12/2025
+          se1_start = datetime.date(2025, 12, 29)
+          delta_days = (last_sunday - se1_start).days
+          se_num = delta_days // 7 + 1
+          year = last_sunday.year if last_sunday >= se1_start else last_sunday.year - 1
+
+          # Formatar datas em pt-BR
+          months_pt = ['','janeiro','fevereiro','março','abril','maio','junho',
+                       'julho','agosto','setembro','outubro','novembro','dezembro']
+          start_str = f"{last_sunday.day} de {months_pt[last_sunday.month]}"
+          end_str   = f"{last_saturday.day} de {months_pt[last_saturday.month]} de {last_saturday.year}"
+
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+            f.write(f"se_num={se_num}\n")
+            f.write(f"se_year={year}\n")
+            f.write(f"se_start={start_str}\n")
+            f.write(f"se_end={end_str}\n")
+            f.write(f"se_label=SE {se_num}/{year} — {start_str} a {end_str}\n")
+
+          print(f"SE identificada: {se_num}/{year} ({start_str} a {end_str})")
+          PYEOF
+
+      - name: Gerar boletim DOCX
+        env:
+          SE_NUM:   ${{ steps.se_info.outputs.se_num }}
+          SE_YEAR:  ${{ steps.se_info.outputs.se_year }}
+          SE_LABEL: ${{ steps.se_info.outputs.se_label }}
+        run: |
+          echo "Gerando boletim: $SE_LABEL"
+          python3 pipeline.py channel_data.json index.html \
+            --boletim \
+            --se-num "$SE_NUM" \
+            --se-year "$SE_YEAR" \
+            --se-label "$SE_LABEL"
+
+      - name: Commit e push
+        env:
+          SE_LABEL: ${{ steps.se_info.outputs.se_label }}
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add index.html boletim_*.docx 2>/dev/null || true
+          git diff --cached --quiet && echo "Sem alterações" && exit 0
+          git commit -m "Boletim semanal — $SE_LABEL"
+          git push

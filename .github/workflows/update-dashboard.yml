@@ -1,13 +1,13 @@
 name: Atualizar Dashboard Epidemiológico
 
 on:
-  # Disparado pelo Apps Script via repository_dispatch
+  # Disparado pelo Apps Script após extração IDS (csv-updated)
   repository_dispatch:
     types: [csv-updated]
 
-  # Fallback: roda todo dia às 11h UTC (8h Brasília) caso o dispatch falhe
+  # Fallback: toda madrugada às 3h Brasília (6h UTC) — extração automática
   schedule:
-    - cron: '0 11 * * *'
+    - cron: '0 6 * * *'
 
   # Execução manual pelo GitHub
   workflow_dispatch:
@@ -29,15 +29,14 @@ jobs:
           python-version: '3.11'
 
       - name: Instalar dependências
-        run: pip install numpy pandas
+        run: pip install pandas numpy
 
       - name: Identificar origem do trigger
         run: |
           if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
-            echo "Origem: Apps Script (repository_dispatch)"
-            echo "Payload: ${{ toJson(github.event.client_payload) }}"
+            echo "Origem: dispatch do Apps Script (csv-updated)"
           elif [ "${{ github.event_name }}" = "schedule" ]; then
-            echo "Origem: cron diário (fallback)"
+            echo "Origem: cron diário (fallback madrugada)"
           else
             echo "Origem: execução manual"
           fi
@@ -52,54 +51,71 @@ jobs:
           curl -sL "https://drive.google.com/uc?export=download&id=${GDRIVE_FILE_ID}" \
             -o dados_ids.csv
 
-          # Se o arquivo for HTML (página de confirmação), extrair token e re-baixar
-          if head -c 100 dados_ids.csv | grep -qi "html"; then
-            echo "Detectada página de confirmação. Re-baixando com token..."
-            CONFIRM=$(curl -sc /tmp/gcookie \
-              "https://drive.google.com/uc?export=download&id=${GDRIVE_FILE_ID}" \
-              | grep -oP 'confirm=\K[^&]+' || echo "t")
-            curl -sL -b /tmp/gcookie \
+          # Se o arquivo for HTML (página de confirmação para arquivos grandes)
+          if file dados_ids.csv | grep -q HTML; then
+            echo "Arquivo grande detectado — usando confirmação..."
+            CONFIRM=$(curl -sc /tmp/cookies.txt \
+              "https://drive.google.com/uc?export=download&id=${GDRIVE_FILE_ID}" | \
+              grep -o 'confirm=[^&"]*' | head -1 | cut -d= -f2)
+            curl -sLb /tmp/cookies.txt \
               "https://drive.google.com/uc?export=download&confirm=${CONFIRM}&id=${GDRIVE_FILE_ID}" \
               -o dados_ids.csv
           fi
 
-          # Validar que é um CSV real
-          LINHAS=$(wc -l < dados_ids.csv)
-          TAMANHO=$(du -h dados_ids.csv | cut -f1)
-          echo "Arquivo baixado: ${LINHAS} linhas / ${TAMANHO}"
-          echo "Primeiras 3 linhas:"
-          head -3 dados_ids.csv
+          echo "CSV baixado: $(wc -l < dados_ids.csv) linhas"
 
-          if head -c 100 dados_ids.csv | grep -qi "html"; then
-            echo "ERRO: Arquivo baixado é HTML, não CSV!"
-            echo "Verifique se o arquivo está compartilhado como 'Qualquer pessoa com o link'."
-            exit 1
-          fi
-
-          if [ "$LINHAS" -lt 10 ]; then
-            echo "ERRO: CSV tem menos de 10 linhas. Verifique o GDRIVE_FILE_ID."
-            exit 1
-          fi
-
-      - name: Executar pipeline completo
+      - name: Verificar se canais precisam ser recalculados
+        id: check_channels
         run: |
-          python pipeline.py dados_ids.csv \
-            --pop 210000 \
-            --output index.html
-          echo "Dashboard gerado: $(du -h index.html | cut -f1)"
+          # Canais são recalculados apenas em janeiro (início do ano epidemiológico)
+          # ou se channel_data.json não existir
+          MONTH=$(date +%m)
+          if [ ! -f channel_data.json ] || [ "$MONTH" = "01" ]; then
+            echo "recompute_channels=true" >> $GITHUB_OUTPUT
+            echo "Canais serão recalculados (janeiro ou arquivo ausente)"
+          else
+            echo "recompute_channels=false" >> $GITHUB_OUTPUT
+            echo "Canais existentes mantidos (fora de janeiro)"
+          fi
+
+      - name: Recalcular canais endêmicos (apenas janeiro ou primeiro run)
+        if: steps.check_channels.outputs.recompute_channels == 'true'
+        run: |
+          echo "Recalculando canais endêmicos com base histórica fixa (2023-2025)..."
+          python3 compute_channels.py dados_ids.csv \
+            --pop '{"2021":210000,"2022":210000,"2023":210000,"2024":210000,"2025":210000,"2026":210000}' \
+            --output channel_data.json \
+            --agravos all \
+            --base-hist-years 2023,2024,2025
+
+      - name: Atualizar dashboard (dados + boletim) sem recalcular canais
+        if: steps.check_channels.outputs.recompute_channels == 'false'
+        run: |
+          echo "Atualizando dashboard com novos dados (canais fixos mantidos)..."
+          python3 compute_channels.py dados_ids.csv \
+            --pop '{"2021":210000,"2022":210000,"2023":210000,"2024":210000,"2025":210000,"2026":210000}' \
+            --output channel_data.json \
+            --agravos all \
+            --base-hist-years 2023,2024,2025 \
+            --skip-channel-estimation
+
+      - name: Gerar index.html
+        run: |
+          python3 pipeline.py channel_data.json index.html
 
       - name: Commit e push
         run: |
-          git config user.name "GitHub Actions Bot"
-          git config user.email "actions@github.com"
-
-          if git diff --quiet index.html 2>/dev/null; then
-            echo "Sem alterações no dashboard. Nada a commitar."
-          else
-            git add index.html
-            HOJE=$(TZ=America/Sao_Paulo date '+%d/%m/%Y %H:%M')
-            ORIGEM="${{ github.event_name }}"
-            git commit -m "Dashboard atualizado — ${HOJE} [${ORIGEM}]"
-            git push
-            echo "Dashboard atualizado e publicado!"
-          fi
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add channel_data.json index.html
+          git diff --cached --quiet && echo "Sem alterações" && exit 0
+          SE=$(python3 -c "
+          import json, datetime
+          with open('channel_data.json') as f:
+            d = json.load(f)
+          ch = list(d['channels'].values())[0]
+          se = max((r['se'] for r in ch['raw'] if r.get('c2026',0)>0), default=0)
+          print(se)
+          ")
+          git commit -m "Dashboard atualizado — SE ${SE}/2026 [$(date '+%d/%m/%Y %H:%M')]"
+          git push
