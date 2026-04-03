@@ -439,7 +439,21 @@ function BoletimTab() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "boletim_epidemiologico_semanal.docx";
+    // Nome do arquivo: Canais Sindromicos UPAs yyyy SEss dd/mm a dd/mm
+    const jan4_ = new Date(new Date().getFullYear(), 0, 4);
+    const se1_  = new Date(jan4_.getTime() - jan4_.getDay() * 86400000);
+    const hoje_ = new Date();
+    const seN_  = Math.floor((hoje_ - se1_) / (7 * 86400000)) + 1;
+    const seEnd_ = new Date(se1_.getTime() + (seN_ - 1) * 7 * 86400000 + 6 * 86400000);
+    const seC_  = seEnd_ < hoje_ ? seN_ : seN_ - 1;
+    const seStart_ = new Date(se1_.getTime() + (seC_ - 1) * 7 * 86400000);
+    const seEnd2_ = new Date(seStart_.getTime() + 6 * 86400000);
+    const pad_ = n => String(n).padStart(2, '0');
+    const fmtDate_ = d => `${pad_(d.getDate())}/${pad_(d.getMonth()+1)}`;
+    const ano_ = seStart_.getFullYear();
+    const ss_  = pad_(seC_);
+    const fileName_ = `Canais Sindromicos UPAs ${ano_} SE${ss_} ${fmtDate_(seStart_)} a ${fmtDate_(seEnd2_)}.docx`;
+    a.download = fileName_;
     a.click();
     URL.revokeObjectURL(url);
   };
