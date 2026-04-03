@@ -101,7 +101,7 @@ jobs:
 
       - name: Gerar index.html
         run: |
-          python3 pipeline.py channel_data.json index.html
+          python3 pipeline.py dados_ids.csv --output index.html
 
       - name: Commit e push
         run: |
