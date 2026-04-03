@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Canal Endêmico Bayesiano — UPAs Rio Claro/SP</title>
+  <title>Vigilância Sindrômica nas UPAs — Canais Sindrômicos Bayesianos</title>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -505,7 +505,7 @@ function BoletimTab() {
           Boletim Epidemiológico Semanal
         </h2>
         <p style={{ color: "#94a3b8", fontSize: 13, margin: "0 0 4px" }}>
-          Canais Endêmicos Bayesianos — UPAs Rio Claro/SP
+          Vigilância Sindrômica — Hipóteses Diagnósticas nas UPAs · Rio Claro/SP
         </p>
         <p style={{ color: "#64748b", fontSize: 12, margin: "0 0 16px" }}>
           {(() => {
@@ -550,7 +550,7 @@ function BoletimTab() {
         <p style={{ color: "#cbd5e1", fontSize: 13, lineHeight: 1.8, margin: "0 0 12px" }}>
           A base histórica compreende 2022 a 2025 (anos completos). Os dados de 2026 são apresentados apenas
           como observados, sem participar da estimação dos limiares, garantindo avaliação genuinamente preditiva
-          via <i>leave-one-out</i>.
+          via <i>base histórica fixa (2023–2025)</i>.
         </p>
         <div style={{ background: "rgba(129,140,248,0.08)", padding: "10px 14px", borderRadius: 8,
           fontSize: 12, color: "#a5b4fc" }}>
@@ -563,6 +563,81 @@ function BoletimTab() {
       </div>
 
       {/* ═══ 2. Quadro Resumo ═══ */}
+      
+      {/* ═══ MAPA DE CALOR: Capítulos × SE (ano corrente) ═══ */}
+      <div style={cardStyle}>
+        {sectionTitle("2. Mapa de Calor Sindrômico — " + (DATA.metadata?.ano_atual || new Date().getFullYear()))}
+        <p style={{ color: "#94a3b8", fontSize: 12, margin: "0 0 12px" }}>
+          Classificação por semana epidemiológica e capítulo CID. Apenas SEs com dados observados.
+          🟢 Sucesso · 🟡 Segurança · 🟠 Alerta · 🔴 Epidêmico · ⛔ Emergência
+        </p>
+        {(() => {
+          const ano = DATA.metadata?.ano_atual || new Date().getFullYear();
+          const caps = Object.keys(DATA.channels).filter(k => /^[IVX]+ -/.test(k));
+          const ch0 = DATA.channels[caps[0]];
+          const sesComDados = ch0.raw
+            .filter(r => (r['c' + ano] || 0) > 0)
+            .map(r => r.se)
+            .sort((a,b) => a-b);
+          if (sesComDados.length === 0) return null;
+          const zoneColor = {
+            sucesso: '#166534', seguranca: '#365314', alerta: '#713f12',
+            epidemico: '#7c2d12', emergencia: '#450a0a', '?': '#1e293b'
+          };
+          const zoneBg = {
+            sucesso: '#bbf7d0', seguranca: '#d9f99d', alerta: '#fef08a',
+            epidemico: '#fed7aa', emergencia: '#fecaca', '?': '#334155'
+          };
+          const zoneLabel = {
+            sucesso: 'S✓', seguranca: 'Sg', alerta: 'Al', epidemico: 'Ep', emergencia: 'Em', '?': '?'
+          };
+          return (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ borderCollapse: 'collapse', fontSize: 10, width: '100%' }}>
+                <thead>
+                  <tr>
+                    <th style={{ textAlign: 'left', padding: '3px 6px', color: '#94a3b8', fontWeight: 600, minWidth: 140 }}>Capítulo CID</th>
+                    {sesComDados.map(se => (
+                      <th key={se} style={{ textAlign: 'center', padding: '3px 4px', color: '#94a3b8', fontWeight: 600, minWidth: 28 }}>
+                        {se}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {caps.map(cap => {
+                    const ch = DATA.channels[cap];
+                    const cl = ch.classifications?.[String(ano)] || [];
+                    const label = cap.replace(/^[IVX]+ - /, '').substring(0, 24);
+                    return (
+                      <tr key={cap}>
+                        <td style={{ padding: '2px 6px', color: '#cbd5e1', fontSize: 10, whiteSpace: 'nowrap' }} title={cap}>{label}</td>
+                        {sesComDados.map(se => {
+                          const zone = cl[se - 1] || '?';
+                          const obs = ch.raw.find(r => r.se === se)?.['c' + ano] || 0;
+                          return (
+                            <td key={se} title={`${cap} · SE${se}: ${obs} atend. (${zone})`}
+                              style={{
+                                textAlign: 'center', padding: '2px 3px',
+                                background: zoneBg[zone] || '#1e293b',
+                                color: zoneColor[zone] || '#94a3b8',
+                                fontWeight: 700, fontSize: 9, cursor: 'default',
+                                borderRadius: 2, margin: 1
+                              }}>
+                              {zoneLabel[zone]}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          );
+        })()}
+      </div>
+
       <div style={cardStyle}>
         {sectionTitle("2. Quadro Resumo — 2025 vs Média Histórica")}
         <div style={{ overflowX: "auto" }}>
@@ -950,7 +1025,7 @@ function App() {
           Canal Endêmico Bayesiano
         </h1>
         <p style={{ color: "#94a3b8", fontSize: 13, margin: "6px 0 0" }}>
-          Vigilância Epidemiológica — UPAs Rio Claro, SP · Modelo Gamma-Poisson Hierárquico
+          Hipóteses diagnósticas e sindromes apresentadas nas UPAs · Rio Claro/SP · Modelo Gamma-Poisson Hierárquico
         </p>
         {/* Tab navigation */}
         <div style={{ display: "flex", gap: 0, marginTop: 20, justifyContent: "center" }}>
