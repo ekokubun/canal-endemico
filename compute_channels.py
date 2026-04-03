@@ -52,7 +52,10 @@ MAX_SE     = 52          # SE 53 excluída por padrão (poucos dados)
 FALLBACK_SHAPE = 0.1     # para SE com todos os anos = 0
 FALLBACK_RATE  = 1.0
 # Anos excluídos da construção dos canais (implantação do sistema / dados inconsistentes)
-EXCLUDED_YEARS = [2021, 2022]
+EXCLUDED_YEARS   = [2021, 2022]
+# Anos usados como base histórica fixa para calibração dos canais.
+# Atualizar manualmente a cada ano (adicionar o ano anterior completo).
+BASE_HIST_YEARS  = [2023, 2024, 2025]
 
 # ── Funções auxiliares ────────────────────────────────────────────────
 
