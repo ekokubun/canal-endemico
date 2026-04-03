@@ -442,7 +442,12 @@ def classify_zone(value, thresholds):
     elif value <= p90: return 'epidemico'
     else: return 'emergencia'
 
+# ANTES do step1:
+input_csv = step0_preprocess_if_needed(args.input)
 
+# Step 1 usa input_csv em vez de args.input:
+channel_data = step1_compute_channels(input_csv, args.pop)
+age_data = step2_age_group_data(input_csv, channel_data)
 # ══════════════════════════════════════════════════════════════════════
 # Step 1: Rodar compute_channels.py
 # ══════════════════════════════════════════════════════════════════════
