@@ -5873,7 +5873,11 @@ def extract_cid_code(desc):
 
 def run_pipeline(input_file, populations, output_file,
                  agravos='all', col_date='data', col_cid='cid_descricao',
-                 col_qty='quantidade', monitor_year=None):
+                 col_qty='quantidade', monitor_year=None,
+                 base_hist_years=None, skip_channel_estimation=False):
+    # Usar BASE_HIST_YEARS global se não especificado
+    if base_hist_years is None:
+        base_hist_years = BASE_HIST_YEARS
     """
     Pipeline completo: CSV → canais endêmicos → JSON.
 
