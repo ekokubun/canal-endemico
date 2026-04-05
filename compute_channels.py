@@ -12,7 +12,6 @@ Modelo:
 
 Estimação: Método dos Momentos (MoM) com refinamento por grid-search
            em log-verossimilhança da Binomial Negativa.
-
 Quantis: Monte Carlo (500 000 amostras) — preciso e robusto sem scipy.
 
 Saída: JSON compacto para dashboard React/Recharts.
@@ -51,11 +50,12 @@ RNG_SEED   = 2026
 MAX_SE     = 52          # SE 53 excluída por padrão (poucos dados)
 FALLBACK_SHAPE = 0.1     # para SE com todos os anos = 0
 FALLBACK_RATE  = 1.0
-# Anos excluídos da construção dos canais (implantação do sistema / dados inconsistentes)
-EXCLUDED_YEARS   = [2021, 2022]
-# Anos usados como base histórica fixa para calibração dos canais.
-# Atualizar manualmente a cada ano (adicionar o ano anterior completo).
-BASE_HIST_YEARS  = [2023, 2024, 2025]
+# Anos de implantação — excluídos permanentemente do cálculo dos canais
+EXCLUDED_YEARS  = [2021, 2022]
+# Base histórica: últimos 5 anos completos, excluindo anos de implantação
+# Calculado automaticamente — não editar manualmente
+_ano_atual      = __import__('datetime').date.today().year
+BASE_HIST_YEARS = [y for y in range(_ano_atual - 5, _ano_atual) if y not in EXCLUDED_YEARS]
 
 # ── Funções auxiliares ────────────────────────────────────────────────
 
