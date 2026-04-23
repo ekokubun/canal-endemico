@@ -430,6 +430,36 @@ function BoletimTab() {
   const zonaNome = {"sucesso": "Sucesso", "seguranca": "Segurança", "alerta": "Alerta", "epidemico": "Epidêmico", "emergencia": "Emergência"};
   const [expandido, setExpandido] = useState(null);
 
+  // ── Helpers de calendário epidemiológico (regra ISO/SINAN/MS) ──
+  // SE01 = semana cujo domingo contém 04/jan (domingo=dia 1, sábado=dia 7)
+  // Uma SE é COMPLETA apenas após seu sábado de encerramento ter passado.
+  // Retorna: { seEmCurso, seUltimaCompleta, diasDecorridos, seStartDate, seEndDate }
+  const calcularSeEpi = (dataRef) => {
+    const hoje = dataRef || new Date();
+    const ano = hoje.getFullYear();
+    const jan4 = new Date(ano, 0, 4);
+    // jan4.getDay(): domingo=0, segunda=1, ..., sábado=6
+    // Domingo da semana de jan4 = jan4 - jan4.getDay() dias
+    const se1 = new Date(jan4.getTime() - jan4.getDay() * 86400000);
+    const diasDesdeSe1 = Math.floor((hoje - se1) / 86400000);
+    const seEmCurso = Math.floor(diasDesdeSe1 / 7) + 1;
+    const diasDecorridos = (diasDesdeSe1 % 7) + 1; // 1=domingo, 7=sábado
+    const seStart = new Date(se1.getTime() + (seEmCurso - 1) * 7 * 86400000);
+    const seEnd = new Date(seStart.getTime() + 6 * 86400000);
+    // SE completa: hoje > sábado da SE em curso
+    const seUltimaCompleta = hoje > seEnd ? seEmCurso : seEmCurso - 1;
+    return { seEmCurso, seUltimaCompleta, diasDecorridos, seStart, seEnd, ano };
+  };
+  // Cache do resultado para uso em toda a renderização
+  const seCal = calcularSeEpi();
+  // SE para ANÁLISE = min(se_atual do pipeline, última SE completa pelo calendário)
+  // Garante que SEs parciais nunca contaminem classificações/estatísticas.
+  const sePipeline = DATA.metadata?.se_atual || 52;
+  const seAnalise = Math.min(sePipeline, seCal.seUltimaCompleta);
+  // SE em curso (parcial) — só renderizada visualmente como "em curso", sem classificar
+  const sePartialExists = sePipeline > seCal.seUltimaCompleta;
+  const sePartial = sePartialExists ? sePipeline : null;
+
   const downloadDocx = () => {
     const byteChars = atob(DOCX_B64);
     const byteNumbers = new Array(byteChars.length);
@@ -569,6 +599,87 @@ function BoletimTab() {
         }}>
           <span style={{ fontSize: 18 }}>⬇</span> Baixar Boletim (.docx)
         </button>
+
+        {/* Banner de transparência: pipeline vs calendário vs análise */}
+        {(() => {
+          const m = DATA.metadata || {};
+          const gen = m.generated ? new Date(m.generated) : null;
+          const ano = m.ano_atual || seCal.ano;
+          // Status de sincronização entre pipeline e calendário
+          const sePipelineRaw = m.se_atual || 0;
+          const gapCalendario = seCal.seUltimaCompleta - sePipelineRaw; // >0: pipeline atrasado
+          const temSeParcial = sePartialExists;
+          const fmtDateTime = (d) => d ? d.toLocaleString("pt-BR", {
+            day: "2-digit", month: "2-digit", year: "numeric",
+            hour: "2-digit", minute: "2-digit"
+          }) : "—";
+          // Formatar intervalo SE (domingo-sábado)
+          const fmtSeRange = (seNum) => {
+            const start = new Date(seCal.seStart.getTime() - (seCal.seEmCurso - seNum) * 7 * 86400000);
+            const end = new Date(start.getTime() + 6 * 86400000);
+            const pad = n => String(n).padStart(2, '0');
+            return `${pad(start.getDate())}/${pad(start.getMonth()+1)} a ${pad(end.getDate())}/${pad(end.getMonth()+1)}`;
+          };
+          // Cor de fundo/borda com base em severidade do problema
+          const bgCor = temSeParcial || gapCalendario > 0 ? "rgba(245,158,11,0.08)" : "rgba(34,197,94,0.08)";
+          const brdCor = temSeParcial || gapCalendario > 0 ? "rgba(245,158,11,0.25)" : "rgba(34,197,94,0.25)";
+          return (
+            <div style={{
+              marginTop: 14, padding: "10px 14px", borderRadius: 8,
+              background: bgCor, border: `1px solid ${brdCor}`,
+              fontSize: 11, color: "#cbd5e1",
+              display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+              gap: 12, textAlign: "left"
+            }}>
+              <div>
+                <div style={{ fontSize: 9, color: "#64748b", textTransform: "uppercase", letterSpacing: 0.5 }}>
+                  Análise
+                </div>
+                <div>
+                  <b style={{ color: "#22c55e" }}>SE {seAnalise}/{ano}</b>
+                  <span style={{ fontSize: 9, color: "#64748b", marginLeft: 4 }}>
+                    ({fmtSeRange(seAnalise)})
+                  </span>
+                </div>
+                <div style={{ fontSize: 9, color: "#64748b" }}>
+                  Última SE completa — usada em status, tendências e classificação
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: 9, color: "#64748b", textTransform: "uppercase", letterSpacing: 0.5 }}>
+                  Pipeline (dados brutos)
+                </div>
+                <div>
+                  SE {sePipelineRaw}/{ano}
+                  {temSeParcial && (
+                    <span style={{ color: "#f59e0b", fontWeight: 600, marginLeft: 4 }}>
+                      ⚠ parcial
+                    </span>
+                  )}
+                </div>
+                <div style={{ fontSize: 9, color: "#64748b" }}>
+                  Última extração: {fmtDateTime(gen)}
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: 9, color: "#64748b", textTransform: "uppercase", letterSpacing: 0.5 }}>
+                  Calendário
+                </div>
+                <div>
+                  Hoje: SE{seCal.seEmCurso} ({seCal.diasDecorridos}/7 dias)
+                </div>
+                <div style={{ fontSize: 9, color: "#64748b" }}>
+                  Última completa: SE{seCal.seUltimaCompleta}
+                  {gapCalendario > 0 && (
+                    <span style={{ color: "#f59e0b", marginLeft: 4 }}>
+                      (pipeline atrasado {gapCalendario} SE)
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })()}
       </div>
 
       {/* ═══ 1. Panorama Geral ═══ */}
@@ -599,28 +710,189 @@ function BoletimTab() {
         </div>
       </div>
 
-      {/* ═══ 2. Quadro Resumo ═══ */}
-      
-      {/* ═══ MAPA DE CALOR: Capítulos × SE (ano corrente) ═══ */}
+      {/* ═══ 2. Quadro Resumo — âncora 2026 ═══ */}
+      {(() => {
+        // Enriquecer BOLETIM_DATA uma única vez com:
+        //   - total_2025_ytd_p50: soma sazonal dos P50 das SE 1..N de 2025 (referência histórica)
+        //   - var_pct_p50_ytd: variação % de 2026-YTD vs 2025-P50-YTD
+        //   - zonas_2026_seq: sequência de classificações 2026, SE 1..N
+        //   - trend_last4: últimas 4 zonas observadas em 2026 (para sparkline)
+        // Usa DATA.channels[agravo].channels["2025"] (quantis) e classifications["2026"].
+        const enriched = BOLETIM_DATA.map(item => {
+          const ch = DATA.channels[item.name];
+          // seN = última SE COMPLETA (filtrando SE parcial se houver)
+          // item.se_2026 pode ter SE parcial; seAnalise garante apenas SEs completas.
+          const seN = Math.min(item.se_2026 || 0, seAnalise);
+          let p50_ytd = null, var_ytd = null, zonas_seq = [], trend_last4 = [];
+          // Recalcular total_2026 somando só SEs COMPLETAS (SE parcial é excluída)
+          // item.total_2026 do pipeline inclui SE parcial — não usar para estatística.
+          let total_2026_completo = 0;
+          if (ch && ch.raw && seN > 0) {
+            total_2026_completo = ch.raw
+              .filter(r => r.se <= seN)
+              .reduce((s, r) => s + (r.c2026 || 0), 0);
+          }
+          if (ch && ch.channels && ch.channels["2025"] && seN > 0) {
+            // P50 está no índice 2 (quantiles [P10, P25, P50, P75, P90])
+            p50_ytd = ch.channels["2025"].slice(0, seN).reduce((s, row) => s + (row[2] || 0), 0);
+            if (p50_ytd > 0) {
+              var_ytd = ((total_2026_completo - p50_ytd) / p50_ytd) * 100;
+            }
+          }
+          if (ch && ch.classifications && ch.classifications["2026"]) {
+            zonas_seq = ch.classifications["2026"].slice(0, seN);
+            trend_last4 = zonas_seq.slice(-4);
+          }
+          // Recontar zonas apenas das SEs JÁ OBSERVADAS (1..seN), ignorando futuras.
+          // O classificacao_2026 pré-agregado no BOLETIM_DATA inclui todas as 52 SEs
+          // (pipeline classifica observado=0 como "sucesso"), o que contamina a barra.
+          const zonas_2026_cls = { sucesso: 0, seguranca: 0, alerta: 0, epidemico: 0, emergencia: 0 };
+          zonas_seq.forEach(z => { if (z in zonas_2026_cls) zonas_2026_cls[z]++; });
+          // Status Fiocruz = pior zona das últimas 2 SEs observadas (padrão InfoGripe)
+          const zonaRankQR = { sucesso: 0, seguranca: 1, alerta: 2, epidemico: 3, emergencia: 4 };
+          const rankToZonaQR = ["sucesso", "seguranca", "alerta", "epidemico", "emergencia"];
+          const ultimas2 = zonas_seq.slice(-2);
+          const status_fiocruz = ultimas2.length === 0
+            ? "sucesso"
+            : rankToZonaQR[Math.max(...ultimas2.map(z => zonaRankQR[z] ?? 0))];
+          return { ...item, total_2025_ytd_p50: p50_ytd, var_pct_p50_ytd: var_ytd,
+                   zonas_2026_seq: zonas_seq, trend_last4, zonas_2026_cls, status_fiocruz,
+                   total_2026_completo, seN_analise: seN };
+        });
+
+        // Emoji por zona para sparkline compacto de tendência
+        const zonaEmoji = { sucesso: "🟢", seguranca: "🔵", alerta: "🟡", epidemico: "🟠", emergencia: "🔴" };
+        // Cor de fundo/texto para o pill de status atual (usa zonaCor existente do BoletimTab)
+        const statusPillStyle = (zona) => ({
+          padding: "3px 8px", borderRadius: 6, fontSize: 10, fontWeight: 700,
+          background: zonaCor[zona] ? zonaCor[zona] + "33" : "rgba(255,255,255,0.06)",
+          color: zonaCor[zona] || "#94a3b8",
+          whiteSpace: "nowrap",
+        });
+        // Cor da variação % (alto desvio positivo = vermelho, negativo grande = verde)
+        const varColor = (v) => v == null ? "#64748b"
+          : v >= 25 ? "#ef4444"
+          : v >= 10 ? "#f59e0b"
+          : v <= -25 ? "#22c55e"
+          : v <= -10 ? "#3b82f6"
+          : "#94a3b8";
+
+        return (
+          <div style={cardStyle}>
+            {sectionTitle(`2. Quadro Resumo — 2026 YTD (SE 1–${enriched[0]?.seN_analise || "?"}) vs 2025 Esperado (P50)`)}
+            <p style={{ color: "#94a3b8", fontSize: 12, margin: "0 0 12px", lineHeight: 1.6 }}>
+              Comparação sazonal: 2026 observado até a SE {enriched[0]?.seN_analise || "?"} (última SE completa) contra a soma das medianas históricas
+              (P50) nas mesmas SEs de 2025. <b>Status Fiocruz</b> = pior zona das últimas 2 SEs observadas
+              (padrão InfoGripe). Passe o mouse sobre o nome do agravo para ver o contexto histórico 2025.
+            </p>
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                <thead>
+                  <tr style={{ borderBottom: "2px solid rgba(255,255,255,0.1)" }}>
+                    {[
+                      "Agravo", "Status Fiocruz", "2026 YTD", "2025 YTD (P50)", "Var%",
+                      "Pico 2026", "Últ. 4 SEs", "Zonas 2026"
+                    ].map(h => (
+                      <th key={h} style={{ padding: "8px 6px", textAlign: "left", color: "#94a3b8",
+                        fontWeight: 600, whiteSpace: "nowrap", fontSize: 11 }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {enriched.map((item, i) => {
+                    const tooltipHist = `Contexto histórico 2025 — Prioridade: ${item.prioridade}`
+                      + ` · Var% 2025 vs média 22-24: ${item.variacao_pct > 0 ? "+" : ""}${item.variacao_pct}%`
+                      + ` · Pico 2025: ${(item.pico_val_2025 || 0).toLocaleString("pt-BR")} na SE ${item.pico_se_2025}`
+                      + ` · SEs>P90 em 2025: ${item.se_p90_2025}`;
+                    return (
+                      <tr key={i} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)",
+                        cursor: "pointer",
+                        background: expandido === i ? "rgba(129,140,248,0.06)" : "transparent" }}
+                        onClick={() => setExpandido(expandido === i ? null : i)}>
+                        {/* Col 1: Agravo (com tooltip de contexto histórico 2025) */}
+                        <td style={{ padding: "8px 6px", fontWeight: 500, fontSize: 12, maxWidth: 200 }}>
+                          <span title={tooltipHist} style={{ borderBottom: "1px dotted rgba(255,255,255,0.2)",
+                            cursor: "help" }}>
+                            {item.name}
+                          </span>
+                        </td>
+                        {/* Col 2: Status Fiocruz (pior zona últimas 2 SEs) */}
+                        <td style={{ padding: "8px 6px" }}>
+                          <span style={statusPillStyle(item.status_fiocruz)}
+                            title={`Pior zona nas últimas 2 SEs (padrão Fiocruz/InfoGripe). Últ. SE isolada: ${zonaNome[item.ultima_se_zona] || item.ultima_se_zona}`}>
+                            {zonaNome[item.status_fiocruz] || item.status_fiocruz}
+                          </span>
+                        </td>
+                        {/* Col 3: 2026 YTD (somente SEs completas) */}
+                        <td style={{ padding: "8px 6px", fontFamily: "JetBrains Mono, monospace",
+                          fontSize: 11, color: "#fbbf24", fontWeight: 600 }}
+                          title={sePartialExists ? `SE ${sePartial} em curso foi excluída da soma` : null}>
+                          {item.total_2026_completo.toLocaleString("pt-BR")}
+                        </td>
+                        {/* Col 4: 2025 YTD P50 */}
+                        <td style={{ padding: "8px 6px", fontFamily: "JetBrains Mono, monospace",
+                          fontSize: 11, color: "#cbd5e1" }}>
+                          {item.total_2025_ytd_p50 != null
+                            ? Math.round(item.total_2025_ytd_p50).toLocaleString("pt-BR")
+                            : "—"}
+                        </td>
+                        {/* Col 5: Var% vs 2025 P50 */}
+                        <td style={{ padding: "8px 6px", fontFamily: "JetBrains Mono, monospace",
+                          fontSize: 11, color: varColor(item.var_pct_p50_ytd), fontWeight: 600 }}>
+                          {item.var_pct_p50_ytd != null
+                            ? `${item.var_pct_p50_ytd > 0 ? "+" : ""}${item.var_pct_p50_ytd.toFixed(1)}%`
+                            : "—"}
+                        </td>
+                        {/* Col 6: Pico 2026 (valor + SE) */}
+                        <td style={{ padding: "8px 6px", fontFamily: "JetBrains Mono, monospace", fontSize: 11 }}>
+                          {(item.pico_val_2026 || 0).toLocaleString("pt-BR")}
+                          <span style={{ fontSize: 9, color: "#64748b" }}> SE{item.pico_se_2026}</span>
+                        </td>
+                        {/* Col 7: Sparkline tendência últimas 4 SEs */}
+                        <td style={{ padding: "8px 6px", fontSize: 13, letterSpacing: 1, whiteSpace: "nowrap" }}
+                          title={item.trend_last4.length > 0
+                            ? `Últimas ${item.trend_last4.length} SEs: ${item.trend_last4.map(z => zonaNome[z]||z).join(" · ")}`
+                            : "Sem dados"}>
+                          {item.trend_last4.length > 0
+                            ? item.trend_last4.map((z, idx) => <span key={idx}>{zonaEmoji[z] || "·"}</span>)
+                            : <span style={{color: "#64748b"}}>—</span>}
+                        </td>
+                        {/* Col 8: Mini-barra zonas 2026 (apenas SEs completas, sem parcial/futuras) */}
+                        <td style={{ padding: "8px 6px", minWidth: 140 }}>
+                          <ZonaBar cls={item.zonas_2026_cls}
+                                   totalSEs={52}
+                                   seCompleta={item.seN_analise} />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <div style={{ fontSize: 10, color: "#64748b", marginTop: 10, fontStyle: "italic", lineHeight: 1.5 }}>
+              Clique em uma linha para expandir a análise detalhada. Passe o mouse sobre o nome do agravo
+              para ver o contexto histórico 2025. Var%: ≥+25% vermelho, +10/+25% laranja,
+              −10/−25% azul, ≤−25% verde.
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ═══ 3. Mapa de Calor Sindrômico ═══ */}
       <div style={cardStyle}>
-        {sectionTitle("2. Mapa de Calor Sindrômico — " + (DATA.metadata?.ano_atual || new Date().getFullYear()))}
+        {sectionTitle("3. Mapa de Calor Sindrômico — " + (DATA.metadata?.ano_atual || new Date().getFullYear()))}
         <p style={{ color: "#94a3b8", fontSize: 12, margin: "0 0 12px" }}>
-          Classificação por semana epidemiológica e capítulo CID. Apenas SEs com dados observados.
-          🟢 Sucesso · 🟡 Segurança · 🟠 Alerta · 🔴 Epidêmico · ⛔ Emergência
+          Classificação por semana epidemiológica e capítulo CID. SEs completas classificadas; SE em curso em cinza (sem classificar).
+          🟢 Sucesso · 🟡 Segurança · 🟠 Alerta · 🔴 Epidêmico · ⛔ Emergência · ▨ Em curso
         </p>
         {(() => {
           const ano = DATA.metadata?.ano_atual || new Date().getFullYear();
           const caps = Object.keys(DATA.channels).filter(k => /^[IVX]+ -/.test(k));
           const ch0 = DATA.channels[caps[0]];
-          // SE completa = cujo sábado de encerramento já passou (regra SINAN/MS)
-          // SE01 = domingo da semana que contém 04/jan
-          const jan4__ = new Date(new Date().getFullYear(), 0, 4);
-          const se1Start__ = new Date(jan4__.getTime() - jan4__.getDay() * 86400000);
-          const hoje__ = new Date();
-          const seEmCurso__ = Math.floor((hoje__ - se1Start__) / (7*86400000)) + 1;
-          const seEmCursoEnd__ = new Date(se1Start__.getTime() + (seEmCurso__-1)*7*86400000 + 6*86400000);
-          const seCompleta__ = seEmCursoEnd__ < hoje__ ? seEmCurso__ : seEmCurso__ - 1;
-          // Apenas SEs com dados E já encerradas
+          // Usa seAnalise (apenas SEs COMPLETAS pelo calendário)
+          // e sePartial (a parcial, renderizada à parte como "em curso")
+          const seCompleta__ = seAnalise;
+          // Apenas SEs com dados E dentro da janela observada (1..se_atual)
           const sesComDados = ch0.raw
             .filter(r => (r['c' + ano] || 0) > 0 && r.se <= seCompleta__)
             .map(r => r.se)
@@ -648,6 +920,14 @@ function BoletimTab() {
                         {se}
                       </th>
                     ))}
+                    {sePartialExists && (
+                      <th style={{ textAlign: 'center', padding: '3px 4px',
+                        color: '#fbbf24', fontWeight: 600, minWidth: 28,
+                        borderLeft: '1px dashed rgba(251,191,36,0.4)' }}
+                        title={`SE${sePartial} em curso (${seCal.diasDecorridos}/7 dias)`}>
+                        {sePartial}*
+                      </th>
+                    )}
                   </tr>
                 </thead>
                 <tbody>
@@ -674,308 +954,365 @@ function BoletimTab() {
                             </td>
                           );
                         })}
+                        {sePartialExists && (() => {
+                          const obsPartial = ch.raw.find(r => r.se === sePartial)?.['c' + ano] || 0;
+                          return (
+                            <td title={`${cap} · SE${sePartial} (em curso, ${seCal.diasDecorridos}/7 dias): ${obsPartial} atend. parciais — não classificada`}
+                              style={{
+                                textAlign: 'center', padding: '2px 3px',
+                                background: 'repeating-linear-gradient(45deg, #475569, #475569 3px, #334155 3px, #334155 6px)',
+                                color: '#cbd5e1',
+                                fontWeight: 700, fontSize: 9, cursor: 'default',
+                                borderRadius: 2, margin: 1,
+                                borderLeft: '1px dashed rgba(251,191,36,0.4)'
+                              }}>
+                              ▨
+                            </td>
+                          );
+                        })()}
                       </tr>
                     );
                   })}
                 </tbody>
               </table>
+              {sePartialExists && (
+                <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 8,
+                  fontStyle: "italic", lineHeight: 1.5 }}>
+                  * SE{sePartial} em curso ({seCal.diasDecorridos}/7 dias) — dados parciais, não classificados.
+                  Fecha sábado {String(seCal.seEnd.getDate()).padStart(2,'0')}/{String(seCal.seEnd.getMonth()+1).padStart(2,'0')}.
+                </div>
+              )}
             </div>
           );
         })()}
       </div>
 
-      <div style={cardStyle}>
-        {sectionTitle("2. Quadro Resumo — 2025 vs Média Histórica")}
-        <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-            <thead>
-              <tr style={{ borderBottom: "2px solid rgba(255,255,255,0.1)" }}>
-                {["Agravo", "Prio", "Total 2025", "Média 22-24", "Var%", "Pico 2025", "SE\u003eP90", (`SE1-${(() => {
-                    const jan4 = new Date(new Date().getFullYear(), 0, 4);
-                    const se1 = new Date(jan4.getTime() - jan4.getDay()*86400000);
-                    const hoje = new Date();
-                    const seEmCurso = Math.floor((hoje - se1)/(7*86400000)) + 1;
-                    const seEnd = new Date(se1.getTime() + (seEmCurso-1)*7*86400000 + 6*86400000);
-                    return seEnd < hoje ? seEmCurso : seEmCurso - 1;
-                  })()} /2026`), "Últ. SE completa"].map(h => (
-                  <th key={h} style={{ padding: "8px 5px", textAlign: "left", color: "#94a3b8",
-                    fontWeight: 600, whiteSpace: "nowrap", fontSize: 11 }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {BOLETIM_DATA.map((item, i) => (
-                <tr key={i} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)",
-                  cursor: "pointer", background: expandido === i ? "rgba(129,140,248,0.06)" : "transparent" }}
-                  onClick={() => setExpandido(expandido === i ? null : i)}>
-                  <td style={{ padding: "7px 5px", fontWeight: 500, fontSize: 12, maxWidth: 180 }}>{item.name}</td>
-                  <td style={{ padding: "7px 5px" }}>
-                    <span style={{ padding: "2px 6px", borderRadius: 4, fontSize: 9, fontWeight: 700,
-                      background: prioridadeBg[item.prioridade], color: prioridadeCor[item.prioridade] }}>
-                      {item.prioridade}
-                    </span>
-                  </td>
-                  <td style={{ padding: "7px 5px", fontFamily: "JetBrains Mono, monospace", fontSize: 11 }}>
-                    {item.total_2025.toLocaleString("pt-BR")}
-                  </td>
-                  <td style={{ padding: "7px 5px", fontFamily: "JetBrains Mono, monospace", fontSize: 11 }}>
-                    {item.media_hist.toLocaleString("pt-BR")}
-                  </td>
-                  <td style={{ padding: "7px 5px", fontFamily: "JetBrains Mono, monospace", fontSize: 11,
-                    color: item.variacao_pct > 10 ? "#ef4444" : item.variacao_pct < -10 ? "#22c55e" : "#94a3b8" }}>
-                    {item.variacao_pct > 0 ? "+" : ""}{item.variacao_pct}%
-                  </td>
-                  <td style={{ padding: "7px 5px", fontFamily: "JetBrains Mono, monospace", fontSize: 11 }}>
-                    {(item.pico_val_2025 || 0).toLocaleString("pt-BR")} <span style={{fontSize: 9, color: "#64748b"}}>SE{item.pico_se_2025}</span>
-                  </td>
-                  <td style={{ padding: "7px 5px", fontFamily: "JetBrains Mono, monospace", fontSize: 11,
-                    color: item.se_p90_2025 > 10 ? "#ef4444" : "#94a3b8" }}>
-                    {item.se_p90_2025}
-                  </td>
-                  <td style={{ padding: "7px 5px", fontFamily: "JetBrains Mono, monospace", fontSize: 11, color: "#fbbf24" }}>
-                    {item.total_2026.toLocaleString("pt-BR")}
-                    <span style={{ fontSize: 9, color: "#64748b" }}> SE1-{item.se_2026}</span>
-                  </td>
-                  <td style={{ padding: "7px 5px" }}>
-                    <span style={{ padding: "2px 6px", borderRadius: 4, fontSize: 9, fontWeight: 700,
-                      background: zonaCor[item.ultima_se_zona] ? zonaCor[item.ultima_se_zona] + "33" : "rgba(255,255,255,0.06)",
-                      color: zonaCor[item.ultima_se_zona] || "#94a3b8" }}>
-                      {zonaNome[item.ultima_se_zona] || item.ultima_se_zona}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        <div style={{ fontSize: 10, color: "#64748b", marginTop: 8, fontStyle: "italic" }}>
-          Clique em uma linha para expandir a análise detalhada do agravo.
-        </div>
-      </div>
+      {/* ═══ 4. Análise por Agravo — Status Fiocruz (pior zona últ. 2 SEs) ═══ */}
+      {(() => {
+        // Ordem narrativa de urgência por STATUS FIOCRUZ (pior zona das últimas 2 SEs)
+        const ordemStatus = ["emergencia", "epidemico", "alerta", "seguranca", "sucesso"];
+        const statusLabel = {
+          emergencia: "EMERGÊNCIA",
+          epidemico:  "EPIDÊMICO",
+          alerta:     "ALERTA",
+          seguranca:  "SEGURANÇA",
+          sucesso:    "SUCESSO",
+        };
+        const statusCor = {
+          emergencia: "#ef4444",
+          epidemico:  "#f97316",
+          alerta:     "#f59e0b",
+          seguranca:  "#3b82f6",
+          sucesso:    "#22c55e",
+        };
 
-      {/* ═══ 3. Análise por Agravo — Prioridade ALTA ═══ */}
-      <div style={cardStyle}>
-        {sectionTitle("3. Análise por Agravo")}
+        // Hierarquia de severidade das zonas (para operador "pior zona")
+        const zonaRank = { sucesso: 0, seguranca: 1, alerta: 2, epidemico: 3, emergencia: 4 };
+        const rankToZona = ["sucesso", "seguranca", "alerta", "epidemico", "emergencia"];
+        const piorZona = (zonas) => {
+          if (!zonas || zonas.length === 0) return "sucesso";
+          return rankToZona[Math.max(...zonas.map(z => zonaRank[z] ?? 0))];
+        };
 
-        {/* ALTA */}
-        {altaItems.length > 0 && (
-          <div style={{ marginBottom: 20 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: "#ef4444", marginBottom: 10,
-              display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ background: "rgba(239,68,68,0.2)", padding: "3px 10px", borderRadius: 6,
-                fontSize: 11, fontWeight: 700 }}>PRIORIDADE ALTA</span>
-            </div>
-            {altaItems.map((item, i) => (
-              <div key={i} style={{ ...cardStyle, borderLeft: "3px solid #ef4444",
-                background: "rgba(239,68,68,0.02)", marginBottom: 12 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+        // Parâmetros de janela (padrão Fiocruz/InfoGripe)
+        const JANELA_STATUS = 2;   // nível de atividade: últimas 2 SEs
+        const JANELA_CP = 3;        // tendência curto prazo: últimas 3 SEs
+        const JANELA_LP = 6;        // tendência longo prazo: últimas 6 SEs
+
+        // Classificador de tendência: compara média das últimas N SEs vs N SEs anteriores
+        // Retorna "cresc" / "queda" / "estavel" / null (dados insuficientes)
+        const tendencia = (obsArr, janela) => {
+          if (!obsArr || obsArr.length < 2 * janela) return null;
+          const ultN = obsArr.slice(-janela);
+          const antN = obsArr.slice(-2 * janela, -janela);
+          const mediaUlt = ultN.reduce((s, v) => s + v, 0) / janela;
+          const mediaAnt = antN.reduce((s, v) => s + v, 0) / janela;
+          if (mediaAnt === 0) return mediaUlt > 0 ? "cresc" : "estavel";
+          const delta = (mediaUlt - mediaAnt) / mediaAnt;
+          if (delta >= 0.10) return "cresc";
+          if (delta <= -0.10) return "queda";
+          return "estavel";
+        };
+
+        // Para cada item: recontar zonas 2026 APENAS de SEs observadas (mesma lógica do Quadro Resumo)
+        // + computar status Fiocruz (pior zona últimas 2 SEs) + tendências CP/LP
+        const itensEnriquecidos = BOLETIM_DATA.map(item => {
+          const ch = DATA.channels[item.name];
+          // seN = última SE COMPLETA (exclui SE parcial que não fechou)
+          const seN = Math.min(item.se_2026 || 0, seAnalise);
+          let zonas_seq = [];
+          let obs_seq = [];
+          if (ch && ch.classifications && ch.classifications["2026"]) {
+            zonas_seq = ch.classifications["2026"].slice(0, seN);
+          }
+          if (ch && ch.raw) {
+            // Série observada de 2026 até a última SE COMPLETA (ordem cronológica)
+            obs_seq = ch.raw
+              .filter(r => r.se <= seN)
+              .sort((a, b) => a.se - b.se)
+              .map(r => r.c2026 || r["c2026"] || 0);
+          }
+          // Total 2026 YTD somente de SEs COMPLETAS (exclui parcial)
+          const total_2026_completo = obs_seq.reduce((s, v) => s + v, 0);
+          const zonas_2026_cls = { sucesso: 0, seguranca: 0, alerta: 0, epidemico: 0, emergencia: 0 };
+          zonas_seq.forEach(z => { if (z in zonas_2026_cls) zonas_2026_cls[z]++; });
+          const sesCriticas2026 = zonas_2026_cls.epidemico + zonas_2026_cls.emergencia;
+
+          // Status Fiocruz: pior zona das últimas 2 SEs COMPLETAS (não usa SE parcial)
+          const ultimasJanela = zonas_seq.slice(-JANELA_STATUS);
+          const status_fiocruz = piorZona(ultimasJanela);
+
+          // Tendências (padrão InfoGripe: CP=3 SEs, LP=6 SEs — só SEs completas)
+          const trend_cp = tendencia(obs_seq, JANELA_CP);
+          const trend_lp = tendencia(obs_seq, JANELA_LP);
+
+          // Média semanal 2026 — recalculada só com SEs completas
+          const media_semanal_2026_comp = obs_seq.length > 0
+            ? (total_2026_completo / obs_seq.length).toFixed(1)
+            : 0;
+
+          // Var% YTD (2026 vs P50 de 2025 nas mesmas SEs COMPLETAS)
+          let var_ytd = null;
+          if (ch && ch.channels && ch.channels["2025"] && seN > 0) {
+            const p50_ytd = ch.channels["2025"].slice(0, seN).reduce((s, r) => s + (r[2] || 0), 0);
+            if (p50_ytd > 0) var_ytd = ((total_2026_completo - p50_ytd) / p50_ytd) * 100;
+          }
+          return { ...item, zonas_2026_cls, sesCriticas2026, var_ytd_p50: var_ytd,
+                   status_fiocruz, ultimasJanela, trend_cp, trend_lp,
+                   total_2026_completo, seN_analise: seN,
+                   media_semanal_2026_comp };
+        });
+
+        // Agrupar por STATUS FIOCRUZ (pior zona das últimas 2 SEs)
+        const gruposPorStatus = {};
+        ordemStatus.forEach(s => { gruposPorStatus[s] = []; });
+        itensEnriquecidos.forEach(it => {
+          const z = it.status_fiocruz || "sucesso";
+          if (!(z in gruposPorStatus)) gruposPorStatus[z] = [];
+          gruposPorStatus[z].push(it);
+        });
+
+        // Cor da variação % (mesma regra do Quadro Resumo, para consistência)
+        const varColor2 = (v) => v == null ? "#64748b"
+          : v >= 25 ? "#ef4444"
+          : v >= 10 ? "#f59e0b"
+          : v <= -25 ? "#22c55e"
+          : v <= -10 ? "#3b82f6"
+          : "#94a3b8";
+
+        // Renderiza um card de agravo (layout único para todos os status)
+        const renderCardAgravo = (item, i, corStatus) => {
+          // Zona âncora = status Fiocruz (pior das últimas 2 SEs), NÃO a última SE isolada
+          const zona = item.status_fiocruz;
+          const zonaUltimaSe = item.ultima_se_zona;
+          const zonaNomeAtual = zonaNome[zona] || zona;
+          const zonaCorAtual = zonaCor[zona] || "#94a3b8";
+          const prioCor = prioridadeCor[item.prioridade] || "#94a3b8";
+
+          // Helper: rótulo + emoji + cor para tendência CP/LP
+          const trendDisplay = (t) => {
+            if (t === "cresc")  return { label: "crescimento", emoji: "↗", cor: "#ef4444" };
+            if (t === "queda")  return { label: "queda",       emoji: "↘", cor: "#22c55e" };
+            if (t === "estavel")return { label: "estável",     emoji: "→", cor: "#94a3b8" };
+            return { label: "sem dados", emoji: "·", cor: "#64748b" };
+          };
+          const cp = trendDisplay(item.trend_cp);
+          const lp = trendDisplay(item.trend_lp);
+
+          // Emoji por zona para mostrar as últimas 2 SEs
+          const zonaEmojiCard = { sucesso: "🟢", seguranca: "🔵", alerta: "🟡", epidemico: "🟠", emergencia: "🔴" };
+
+          return (
+            <div key={i} style={{
+              ...cardStyle,
+              borderLeft: `3px solid ${corStatus}`,
+              background: `${corStatus}08`,
+              marginBottom: 12
+            }}>
+              {/* Header: nome + badge STATUS FIOCRUZ (âncora) */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start",
+                marginBottom: 10, gap: 12, flexWrap: "wrap" }}>
+                <div style={{ flex: 1, minWidth: 200 }}>
                   <div style={{ fontSize: 15, fontWeight: 700 }}>{item.name}</div>
-                  <span style={{ padding: "3px 10px", borderRadius: 4, fontSize: 10, fontWeight: 700,
-                    background: "rgba(239,68,68,0.15)", color: "#ef4444" }}>ALTA</span>
-                </div>
-
-                <div style={{ fontSize: 13, color: "#cbd5e1", lineHeight: 1.7, marginBottom: 10 }}>
-                  <b style={{ color: "#e2e8f0" }}>Tendência:</b> {item.tendencia}
-                </div>
-
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 12 }}>
-                  <div style={{ background: "rgba(255,255,255,0.04)", borderRadius: 8, padding: "10px 12px" }}>
-                    <div style={{ fontSize: 10, color: "#94a3b8", textTransform: "uppercase" }}>Total 2025</div>
-                    <div style={{ fontSize: 18, fontWeight: 700, fontFamily: "JetBrains Mono, monospace" }}>
-                      {item.total_2025.toLocaleString("pt-BR")}
-                    </div>
-                    <div style={{ fontSize: 10, color: "#64748b" }}>
-                      Pico: {(item.pico_val_2025||0).toLocaleString("pt-BR")} na SE {item.pico_se_2025}
-                    </div>
-                  </div>
-                  <div style={{ background: "rgba(255,255,255,0.04)", borderRadius: 8, padding: "10px 12px" }}>
-                    <div style={{ fontSize: 10, color: "#94a3b8", textTransform: "uppercase" }}>SE acima P90 (2025)</div>
-                    <div style={{ fontSize: 18, fontWeight: 700, fontFamily: "JetBrains Mono, monospace",
-                      color: item.se_p90_2025 > 10 ? "#ef4444" : "#fbbf24" }}>
-                      {item.se_p90_2025}
-                    </div>
-                    <div style={{ fontSize: 10, color: "#64748b" }}>de 52 semanas</div>
-                  </div>
-                  <div style={{ background: "rgba(255,255,255,0.04)", borderRadius: 8, padding: "10px 12px" }}>
-                    <div style={{ fontSize: 10, color: "#94a3b8", textTransform: "uppercase" }}>2026 (parcial)</div>
-                    <div style={{ fontSize: 18, fontWeight: 700, fontFamily: "JetBrains Mono, monospace", color: "#fbbf24" }}>
-                      {item.total_2026.toLocaleString("pt-BR")}
-                    </div>
-                    <div style={{ fontSize: 10, color: "#64748b" }}>SE 1-{item.se_2026} · Média: {item.media_semanal_2026}/sem</div>
+                  {/* Linha de contexto histórico discreta */}
+                  <div style={{ fontSize: 10, color: "#64748b", marginTop: 2 }}>
+                    Contexto histórico 2025:
+                    <span style={{ color: prioCor, fontWeight: 600, marginLeft: 4 }}>
+                      prio {item.prioridade}
+                    </span>
+                    {" · "}{item.variacao_pct > 0 ? "+" : ""}{item.variacao_pct}% vs média 22-24
+                    {" · "}pico SE{item.pico_se_2025}
                   </div>
                 </div>
+                {/* Badge principal = STATUS FIOCRUZ (pior das últimas 2 SEs) */}
+                <span title={`Status Fiocruz: pior zona nas últimas ${JANELA_STATUS} SEs (${item.ultimasJanela.map(z=>zonaNome[z]||z).join(" · ")})`}
+                  style={{
+                  padding: "5px 12px", borderRadius: 6, fontSize: 11, fontWeight: 700,
+                  background: `${zonaCorAtual}22`, color: zonaCorAtual,
+                  border: `1px solid ${zonaCorAtual}55`, whiteSpace: "nowrap"
+                }}>
+                  {zonaNomeAtual.toUpperCase()} · SE{item.seN_analise}
+                </span>
+              </div>
 
-                <div style={{ marginBottom: 10 }}>
-                  <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 4, fontWeight: 600 }}>Sazonalidade</div>
-                  <div style={{ fontSize: 12, color: "#cbd5e1" }}>{item.sazonalidade}</div>
+              {/* Tira Fiocruz: nível de atividade (últimas 2 SEs) + CP (3 SEs) + LP (6 SEs) */}
+              <div style={{ display: "flex", gap: 12, marginBottom: 10, flexWrap: "wrap",
+                background: "rgba(255,255,255,0.02)", padding: "8px 12px", borderRadius: 8,
+                border: "1px solid rgba(255,255,255,0.05)" }}>
+                <div style={{ fontSize: 11, color: "#94a3b8" }}>
+                  <b style={{ color: "#cbd5e1" }}>Nível de atividade</b>
+                  <span style={{ fontSize: 9, color: "#64748b" }}> (últ. 2 SEs)</span>:{" "}
+                  <span style={{ letterSpacing: 2 }}>
+                    {item.ultimasJanela.map((z, idx) => (
+                      <span key={idx} title={zonaNome[z]}>{zonaEmojiCard[z] || "·"}</span>
+                    ))}
+                  </span>
+                  {zonaUltimaSe !== zona && (
+                    <span style={{ fontSize: 9, color: "#64748b", marginLeft: 4 }}>
+                      · últ. SE isolada: <span style={{ color: zonaCor[zonaUltimaSe] }}>{zonaNome[zonaUltimaSe]}</span>
+                    </span>
+                  )}
                 </div>
-
-                <div style={{ marginBottom: 10 }}>
-                  <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 4, fontWeight: 600 }}>Classificação semanal 2025</div>
-                  <ZonaBar cls={item.classificacao_2025} totalSEs={52} seCompleta={52} />
+                <div style={{ fontSize: 11, color: "#94a3b8" }}>
+                  <b style={{ color: "#cbd5e1" }}>Tendência CP</b>
+                  <span style={{ fontSize: 9, color: "#64748b" }}> (3 SEs)</span>:{" "}
+                  <span style={{ color: cp.cor, fontWeight: 600 }}>{cp.emoji} {cp.label}</span>
                 </div>
-
-                {item.classificacao_2026 && (
-                  <div style={{ marginBottom: 10 }}>
-                    <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 4, fontWeight: 600 }}>Classificação semanal 2026 (SE 1–{(() => { const j4=new Date(new Date().getFullYear(),0,4); const s1=new Date(j4-j4.getDay()*86400000); const h=new Date(); const sc=Math.floor((h-s1)/(7*86400000)); const se=new Date(s1.getTime()+(sc)*7*86400000+6*86400000); return se<h?sc+1:sc; })()})</div>
-                    <ZonaBar cls={item.classificacao_2026} totalSEs={52} seCompleta={(() => {
-                        const jan4 = new Date(new Date().getFullYear(), 0, 4);
-                        const se1 = new Date(jan4.getTime() - jan4.getDay()*86400000);
-                        const hoje = new Date();
-                        const seN = Math.floor((hoje-se1)/(7*86400000))+1;
-                        const seEnd = new Date(se1.getTime()+(seN-1)*7*86400000+6*86400000);
-                        return seEnd < hoje ? seN : seN-1;
-                      })()} />
-                  </div>
-                )}
-
-                <div style={{ fontSize: 12, color: "#818cf8", background: "rgba(129,140,248,0.08)",
-                  padding: "10px 14px", borderRadius: 8 }}>
-                  <b>Ação recomendada:</b> {item.acao}
+                <div style={{ fontSize: 11, color: "#94a3b8" }}>
+                  <b style={{ color: "#cbd5e1" }}>Tendência LP</b>
+                  <span style={{ fontSize: 9, color: "#64748b" }}> (6 SEs)</span>:{" "}
+                  <span style={{ color: lp.cor, fontWeight: 600 }}>{lp.emoji} {lp.label}</span>
                 </div>
               </div>
-            ))}
-          </div>
-        )}
 
-        {/* MODERADA */}
-        {modItems.length > 0 && (
-          <div style={{ marginBottom: 20 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: "#f59e0b", marginBottom: 10,
-              display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ background: "rgba(245,158,11,0.2)", padding: "3px 10px", borderRadius: 6,
-                fontSize: 11, fontWeight: 700 }}>PRIORIDADE MODERADA</span>
-            </div>
-            {modItems.map((item, i) => (
-              <div key={i} style={{ ...cardStyle, borderLeft: "3px solid #f59e0b",
-                background: "rgba(245,158,11,0.02)", marginBottom: 12 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-                  <div style={{ fontSize: 15, fontWeight: 700 }}>{item.name}</div>
-                  <span style={{ padding: "3px 10px", borderRadius: 4, fontSize: 10, fontWeight: 700,
-                    background: "rgba(245,158,11,0.15)", color: "#f59e0b" }}>MODERADA</span>
-                </div>
-
-                <div style={{ fontSize: 13, color: "#cbd5e1", lineHeight: 1.7, marginBottom: 10 }}>
-                  <b style={{ color: "#e2e8f0" }}>Tendência:</b> {item.tendencia}
-                </div>
-
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 12 }}>
-                  <div style={{ background: "rgba(255,255,255,0.04)", borderRadius: 8, padding: "10px 12px" }}>
-                    <div style={{ fontSize: 10, color: "#94a3b8", textTransform: "uppercase" }}>Total 2025</div>
-                    <div style={{ fontSize: 16, fontWeight: 700, fontFamily: "JetBrains Mono, monospace" }}>
-                      {item.total_2025.toLocaleString("pt-BR")}
-                    </div>
-                    <div style={{ fontSize: 10, color: "#64748b" }}>
-                      Pico: {(item.pico_val_2025||0).toLocaleString("pt-BR")} na SE {item.pico_se_2025}
-                    </div>
-                  </div>
-                  <div style={{ background: "rgba(255,255,255,0.04)", borderRadius: 8, padding: "10px 12px" }}>
-                    <div style={{ fontSize: 10, color: "#94a3b8", textTransform: "uppercase" }}>SE acima P90</div>
-                    <div style={{ fontSize: 16, fontWeight: 700, fontFamily: "JetBrains Mono, monospace",
-                      color: item.se_p90_2025 > 10 ? "#ef4444" : "#94a3b8" }}>
-                      {item.se_p90_2025}
-                    </div>
-                  </div>
-                  <div style={{ background: "rgba(255,255,255,0.04)", borderRadius: 8, padding: "10px 12px" }}>
-                    <div style={{ fontSize: 10, color: "#94a3b8", textTransform: "uppercase" }}>2026 (parcial)</div>
-                    <div style={{ fontSize: 16, fontWeight: 700, fontFamily: "JetBrains Mono, monospace", color: "#fbbf24" }}>
-                      {item.total_2026.toLocaleString("pt-BR")}
-                    </div>
-                    <div style={{ fontSize: 10, color: "#64748b" }}>SE 1-{item.se_2026} · {item.media_semanal_2026}/sem</div>
-                  </div>
-                </div>
-
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 10 }}>
-                  <div>
-                    <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 4, fontWeight: 600 }}>Sazonalidade</div>
-                    <div style={{ fontSize: 12, color: "#cbd5e1" }}>{item.sazonalidade}</div>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 4, fontWeight: 600 }}>Últ. SE completa ({(() => {
-                        const jan4 = new Date(new Date().getFullYear(), 0, 4);
-                        const se1 = new Date(jan4.getTime() - jan4.getDay()*86400000);
-                        const hoje = new Date();
-                        const seEmCurso = Math.floor((hoje - se1)/(7*86400000)) + 1;
-                        const seEnd = new Date(se1.getTime() + (seEmCurso-1)*7*86400000 + 6*86400000);
-                        return seEnd < hoje ? seEmCurso : seEmCurso - 1;
-                      })()})</div>
-                    <span style={{ padding: "2px 8px", borderRadius: 4, fontSize: 11, fontWeight: 700,
-                      background: zonaCor[item.ultima_se_zona] ? zonaCor[item.ultima_se_zona] + "33" : "rgba(255,255,255,0.06)",
-                      color: zonaCor[item.ultima_se_zona] || "#94a3b8" }}>
-                      {zonaNome[item.ultima_se_zona] || item.ultima_se_zona}
-                    </span>
-                    <span style={{ fontSize: 11, color: "#64748b", marginLeft: 8 }}>
-                      Obs: {item.ultima_se_obs} · P90: {item.ultima_se_p90}
-                    </span>
-                  </div>
-                </div>
-
-                <div style={{ marginBottom: 10 }}>
-                  <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 4, fontWeight: 600 }}>Classificação 2025</div>
-                  <ZonaBar cls={item.classificacao_2025} />
-                </div>
-
-                <div style={{ fontSize: 12, color: "#818cf8", background: "rgba(129,140,248,0.08)",
-                  padding: "8px 12px", borderRadius: 8 }}>
-                  <b>Ação:</b> {item.acao}
-                </div>
+              {/* Tendência histórica 2025 (descrição textual, em tom neutro) */}
+              <div style={{ fontSize: 12, color: "#94a3b8", lineHeight: 1.6, marginBottom: 12,
+                fontStyle: "italic" }}>
+                Tendência 2025: {item.tendencia}
               </div>
-            ))}
-          </div>
-        )}
 
-        {/* BAIXA */}
-        {baixaItems.length > 0 && (
-          <div style={{ marginBottom: 20 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: "#22c55e", marginBottom: 10,
-              display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ background: "rgba(34,197,94,0.2)", padding: "3px 10px", borderRadius: 6,
-                fontSize: 11, fontWeight: 700 }}>PRIORIDADE BAIXA</span>
-            </div>
-            {baixaItems.map((item, i) => (
-              <div key={i} style={{ ...cardStyle, borderLeft: "3px solid #22c55e",
-                background: "rgba(34,197,94,0.02)", marginBottom: 12 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                  <div style={{ fontSize: 14, fontWeight: 700 }}>{item.name}</div>
-                  <span style={{ padding: "2px 8px", borderRadius: 4, fontSize: 10, fontWeight: 700,
-                    background: "rgba(34,197,94,0.15)", color: "#22c55e" }}>BAIXA</span>
-                </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8, marginBottom: 8 }}>
-                  <div style={{ fontSize: 12, color: "#cbd5e1" }}>
-                    <span style={{ color: "#94a3b8", fontSize: 10 }}>2025: </span>
-                    <b>{item.total_2025.toLocaleString("pt-BR")}</b>
+              {/* Cards numéricos: 2026 dominante à esquerda, 2025 como contexto à direita */}
+              <div style={{ display: "grid", gridTemplateColumns: "1.3fr 1fr 1fr", gap: 8, marginBottom: 12 }}>
+                {/* Card 1 (DOMINANTE): 2026 — somente SEs completas */}
+                <div style={{
+                  background: `${zonaCorAtual}15`,
+                  border: `1px solid ${zonaCorAtual}33`,
+                  borderRadius: 8, padding: "10px 12px"
+                }}>
+                  <div style={{ fontSize: 10, color: zonaCorAtual, textTransform: "uppercase",
+                    fontWeight: 700, letterSpacing: 0.5 }}>
+                    2026 YTD (SE 1–{item.seN_analise})
                   </div>
-                  <div style={{ fontSize: 12, color: "#cbd5e1" }}>
-                    <span style={{ color: "#94a3b8", fontSize: 10 }}>Var: </span>
-                    <b style={{ color: item.variacao_pct > 10 ? "#ef4444" : item.variacao_pct < -10 ? "#22c55e" : "#94a3b8" }}>
-                      {item.variacao_pct > 0 ? "+" : ""}{item.variacao_pct}%
+                  <div style={{ fontSize: 20, fontWeight: 700, fontFamily: "JetBrains Mono, monospace",
+                    color: zonaCorAtual }}
+                    title={sePartialExists ? `SE ${sePartial} em curso foi excluída (dados parciais)` : null}>
+                    {item.total_2026_completo.toLocaleString("pt-BR")}
+                  </div>
+                  <div style={{ fontSize: 10, color: "#94a3b8", lineHeight: 1.4 }}>
+                    {item.media_semanal_2026_comp}/sem · Pico {(item.pico_val_2026||0).toLocaleString("pt-BR")} SE{item.pico_se_2026}
+                    <br/>
+                    Últ. SE completa (SE{item.seN_analise}): obs {item.ultima_se_obs} vs P50 {item.ultima_se_p50}, P90 {item.ultima_se_p90}
+                  </div>
+                </div>
+
+                {/* Card 2: Alertas 2026 */}
+                <div style={{ background: "rgba(255,255,255,0.04)", borderRadius: 8, padding: "10px 12px" }}>
+                  <div style={{ fontSize: 10, color: "#94a3b8", textTransform: "uppercase" }}>
+                    Alertas 2026
+                  </div>
+                  <div style={{ fontSize: 18, fontWeight: 700, fontFamily: "JetBrains Mono, monospace",
+                    color: item.sesCriticas2026 > 0 ? "#f97316" : "#22c55e" }}>
+                    {item.sesCriticas2026}
+                  </div>
+                  <div style={{ fontSize: 10, color: "#64748b" }}>
+                    SEs Ep/Em · Var P50: <b style={{ color: varColor2(item.var_ytd_p50) }}>
+                      {item.var_ytd_p50 != null
+                        ? `${item.var_ytd_p50 > 0 ? "+" : ""}${item.var_ytd_p50.toFixed(1)}%`
+                        : "—"}
                     </b>
                   </div>
-                  <div style={{ fontSize: 12, color: "#cbd5e1" }}>
-                    <span style={{ color: "#94a3b8", fontSize: 10 }}>SE{">"}P90: </span>
-                    <b>{item.se_p90_2025}</b>
-                  </div>
-                  <div style={{ fontSize: 12, color: "#fbbf24" }}>
-                    <span style={{ color: "#94a3b8", fontSize: 10 }}>2026: </span>
-                    <b>{item.total_2026.toLocaleString("pt-BR")}</b>
-                  </div>
                 </div>
-                <div style={{ fontSize: 12, color: "#cbd5e1", marginBottom: 6 }}>
-                  <b style={{ color: "#94a3b8" }}>Tendência:</b> {item.tendencia}
-                </div>
-                <ZonaBar cls={item.classificacao_2025} label="Classificação 2025" />
-                <div style={{ fontSize: 11, color: "#64748b", marginTop: 4 }}>
-                  <b>Ação:</b> {item.acao}
+
+                {/* Card 3: Histórico 2025 (DISCRETO) */}
+                <div style={{ background: "rgba(255,255,255,0.02)", borderRadius: 8, padding: "10px 12px",
+                  border: "1px dashed rgba(255,255,255,0.08)" }}>
+                  <div style={{ fontSize: 10, color: "#64748b", textTransform: "uppercase" }}>
+                    2025 completo
+                  </div>
+                  <div style={{ fontSize: 14, fontWeight: 600, fontFamily: "JetBrains Mono, monospace",
+                    color: "#94a3b8" }}>
+                    {item.total_2025.toLocaleString("pt-BR")}
+                  </div>
+                  <div style={{ fontSize: 10, color: "#64748b" }}>
+                    {item.se_p90_2025} SEs {">"}P90 · Sazon. SE{item.pico_se_2025}
+                  </div>
                 </div>
               </div>
-            ))}
+
+              {/* Classificação 2026 (observado) em destaque, 2025 em tom discreto abaixo */}
+              <div style={{ marginBottom: 8 }}>
+                <div style={{ fontSize: 11, color: "#e2e8f0", marginBottom: 4, fontWeight: 600 }}>
+                  Classificação semanal 2026 ({item.seN_analise} SEs completas)
+                  {sePartialExists && (
+                    <span style={{ fontSize: 9, color: "#64748b", marginLeft: 6 }}>
+                      · SE{sePartial} em curso (excluída)
+                    </span>
+                  )}
+                </div>
+                <ZonaBar cls={item.zonas_2026_cls} totalSEs={52} seCompleta={item.seN_analise} />
+              </div>
+
+              <details style={{ marginBottom: 10 }}>
+                <summary style={{ fontSize: 10, color: "#64748b", cursor: "pointer",
+                  userSelect: "none", padding: "4px 0" }}>
+                  ▸ Ver classificação 2025 completa (contexto histórico)
+                </summary>
+                <div style={{ marginTop: 6, opacity: 0.7 }}>
+                  <ZonaBar cls={item.classificacao_2025} totalSEs={52} seCompleta={52} />
+                </div>
+              </details>
+
+              <div style={{ fontSize: 12, color: "#818cf8", background: "rgba(129,140,248,0.08)",
+                padding: "8px 12px", borderRadius: 8 }}>
+                <b>Ação recomendada:</b> {item.acao}
+              </div>
+            </div>
+          );
+        };
+
+        return (
+          <div style={cardStyle}>
+            {sectionTitle("4. Análise por Agravo — Status Fiocruz (últimas 2 SEs)")}
+            <p style={{ color: "#94a3b8", fontSize: 12, margin: "0 0 16px", lineHeight: 1.6 }}>
+              Agravos agrupados pelo <b>nível de atividade</b> (pior zona nas últimas 2 SEs observadas, padrão
+              InfoGripe/Fiocruz). Cada card mostra também as tendências de <b>curto prazo</b> (3 SEs) e
+              <b> longo prazo</b> (6 SEs). A prioridade histórica 2025 aparece como contexto discreto.
+            </p>
+
+            {ordemStatus.map(status => {
+              const itens = gruposPorStatus[status];
+              if (!itens || itens.length === 0) return null;
+              const cor = statusCor[status];
+              return (
+                <div key={status} style={{ marginBottom: 20 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: cor, marginBottom: 10,
+                    display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ background: `${cor}22`, padding: "3px 10px", borderRadius: 6,
+                      fontSize: 11, fontWeight: 700, border: `1px solid ${cor}44` }}>
+                      {statusLabel[status]} · {itens.length} agravo{itens.length > 1 ? "s" : ""}
+                    </span>
+                  </div>
+                  {itens.map((item, i) => renderCardAgravo(item, i, cor))}
+                </div>
+              );
+            })}
           </div>
-        )}
-      </div>
+        );
+      })()}
 
       {/* ═══ 4. Nota Metodológica ═══ */}
       <div style={{ ...cardStyle, fontSize: 12, color: "#94a3b8", lineHeight: 1.8 }}>
-        {sectionTitle("4. Nota Metodológica")}
+        {sectionTitle("5. Nota Metodológica")}
         <p style={{ margin: "0 0 10px", color: "#cbd5e1" }}>
           <b style={{ color: "#e2e8f0" }}>Modelo hierárquico Gamma-Poisson:</b> Para cada semana epidemiológica (SE),
           o número de casos segue X ~ Poisson(λ·e), com λ ~ Gamma(a, b) como prior. A marginalização resulta
