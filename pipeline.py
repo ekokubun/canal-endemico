@@ -22,11 +22,41 @@ import argparse
 import hashlib
 import re as _re
 import datetime as _datetime
-from datetime import datetime
+from datetime import datetime, date, timedelta
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
+
+# ══════════════════════════════════════════════════════════════════════
+# Helpers de calendário epidemiológico (regra ISO/SINAN/MS)
+# ══════════════════════════════════════════════════════════════════════
+
+def se_ultima_completa(data_ref=None):
+    """Retorna a última SE epidemiológica COMPLETA (sábado já passou).
+
+    Regra ISO/SINAN/MS: SE01 = semana cujo domingo contém 04/jan.
+    Domingo = dia 1, sábado = dia 7. Uma SE só é "completa" depois
+    que seu sábado de encerramento passou.
+
+    Args:
+        data_ref: date ou datetime de referência (default: hoje)
+    Returns:
+        int: número da última SE completa no ano de data_ref
+    """
+    hoje = data_ref or date.today()
+    if isinstance(hoje, datetime):
+        hoje = hoje.date()
+    ano = hoje.year
+    jan4 = date(ano, 1, 4)
+    # Python weekday(): segunda=0..domingo=6 → converter para domingo=0
+    dias_para_domingo = (jan4.weekday() + 1) % 7
+    se1_start = jan4 - timedelta(days=dias_para_domingo)
+    dias_desde = (hoje - se1_start).days
+    se_em_curso = dias_desde // 7 + 1
+    se_end = se1_start + timedelta(days=(se_em_curso - 1) * 7 + 6)
+    return se_em_curso if hoje > se_end else se_em_curso - 1
+
 
 # ══════════════════════════════════════════════════════════════════════
 # STEP 0 — Pré-processamento de CSV bruto Maestro 187
@@ -642,6 +672,12 @@ def step4_boletim(channel_data):
         return None, None
 
     boletim = []
+    # Limite superior: última SE COMPLETA pelo calendário SINAN/MS
+    # SEs parciais (em curso) são excluídas de classificação/agregação para
+    # evitar: (a) comparar obs parcial de N/7 dias com limiares de SE inteira,
+    # (b) contaminar status Fiocruz das últimas 2 SEs com SE parcial artificial.
+    se_limite_calendario = se_ultima_completa()
+    print(f"  Calendário: última SE completa = SE{se_limite_calendario}")
     for name, prio in priority_agravos:
         matched_name, ch = find_channel(name, channels)
         if not ch:
@@ -652,7 +688,6 @@ def step4_boletim(channel_data):
         years = ch['years']
 
         total_2025 = sum(r.get('c2025', 0) for r in raw)
-        total_2026 = sum(r.get('c2026', 0) for r in raw)
         hist_years = [y for y in years if 2022 <= y <= 2024]
         hist_totals = [sum(r.get(f'c{y}', 0) for r in raw) for y in hist_years]
         media_hist = int(np.mean(hist_totals)) if hist_totals else 0
@@ -664,10 +699,20 @@ def step4_boletim(channel_data):
         cls_2025 = ch.get('classifications', {}).get('2025', [])
         se_p90 = sum(1 for z in cls_2025 if z == 'emergencia')
 
-        last_se = 0
+        # last_se_bruto = última SE com qualquer observação (pode ser parcial)
+        last_se_bruto = 0
         for r, se in zip(raw, se_list):
             if r.get('c2026', 0) > 0:
-                last_se = se
+                last_se_bruto = se
+
+        # last_se = última SE COMPLETA (mínimo entre dado existente e calendário)
+        # Se last_se_bruto > se_limite_calendario, a SE bruta é parcial → exclui
+        last_se = min(last_se_bruto, se_limite_calendario)
+        se_parcial = last_se_bruto if last_se_bruto > se_limite_calendario else None
+
+        # total_2026 e médias calculadas APENAS com SEs completas
+        total_2026 = sum(r.get('c2026', 0) for r, se in zip(raw, se_list) if se <= last_se)
+        total_2026_bruto = sum(r.get('c2026', 0) for r in raw)  # para diagnóstico
 
         zone_counts_2025 = {'sucesso': 0, 'seguranca': 0, 'alerta': 0, 'epidemico': 0, 'emergencia': 0}
         for z in cls_2025:
@@ -675,8 +720,13 @@ def step4_boletim(channel_data):
                 zone_counts_2025[z] += 1
 
         cls_2026 = ch.get('classifications', {}).get('2026', [])
+        # classificacao_2026: contar zonas APENAS das SEs COMPLETAS (1..last_se)
+        # Evita inflar "sucesso" com SE parcial classificada como tal espuriamente
         zone_counts_2026 = {'sucesso': 0, 'seguranca': 0, 'alerta': 0, 'epidemico': 0, 'emergencia': 0}
-        for z in cls_2026:
+        for idx, z in enumerate(cls_2026):
+            se_cls = idx + 1  # classifications é lista 0-indexed; SE começa em 1
+            if se_cls > last_se:
+                break
             if z in zone_counts_2026:
                 zone_counts_2026[z] += 1
 
@@ -688,24 +738,35 @@ def step4_boletim(channel_data):
             tend = f"Estável de {var_pct}% em 2025 vs média 2022-2024."
 
         acao = "Manter vigilância ativa." if prio in ("ALTA","MODERADA") else "Monitoramento de rotina."
+        # ultima_se_zona: zona da última SE COMPLETA (não da parcial)
         ultima_zona = cls_2026[last_se - 1] if last_se > 0 and last_se <= len(cls_2026) else 'sem dados'
         obs_ult = raw[last_se - 1].get('c2026', 0) if last_se > 0 else 0
         ch_2026 = ch.get('channels', {}).get('2026', [])
         p90_ult = ch_2026[last_se - 1][4] if ch_2026 and last_se > 0 else 1
         p50_ult = ch_2026[last_se - 1][2] if ch_2026 and last_se > 0 else 1
 
+        # Pico 2026 restrito a SEs completas (pico em SE parcial seria sub-amostra)
+        vals_2026_comp = [(r.get('c2026', 0), se) for r, se in zip(raw, se_list) if se <= last_se]
+        if vals_2026_comp:
+            pico_val_2026, pico_se_2026 = max(vals_2026_comp, key=lambda x: x[0])
+        else:
+            pico_val_2026, pico_se_2026 = 0, 1
+
         boletim.append({
             'name': name, 'prioridade': prio, 'tendencia': tend,
             'sazonalidade': f"Pico na SE {pico_se}.", 'acao': acao,
             'total_2025': total_2025, 'se_p90_2025': se_p90,
             'total_2026': total_2026, 'se_2026': last_se,
+            # Novos campos de diagnóstico para transparência e rastreabilidade
+            'total_2026_bruto': total_2026_bruto,
+            'se_2026_bruto': last_se_bruto,
+            'se_parcial': se_parcial,
             'variacao_pct': var_pct, 'media_hist': media_hist,
             'classificacao_2025': zone_counts_2025,
             'classificacao_2026': zone_counts_2026,
             'pico_val_2025': pico_val, 'pico_se_2025': pico_se,
-            'pico_val_2026': max((r.get('c2026', 0) for r in raw), default=0),
-            'pico_se_2026': max(((r.get('c2026', 0), se) for r, se in zip(raw, se_list)),
-                                key=lambda x: x[0], default=(0, 1))[1],
+            'pico_val_2026': pico_val_2026,
+            'pico_se_2026': pico_se_2026,
             'ultima_se_zona': ultima_zona, 'ultima_se_obs': obs_ult,
             'ultima_se_p90': p90_ult, 'ultima_se_p50': p50_ult,
             'media_semanal_2026': round(total_2026 / max(last_se, 1), 1),
@@ -726,6 +787,19 @@ def step5_generate_html(channel_data, age_data, age_channels, boletim,
     print("STEP 5: Gerando HTML final")
     print("=" * 60)
 
+    # Sobrescrever metadata para garantir que o frontend receba SE completa
+    # O compute_channels.py grava se_atual = max(SE com obs>0), que pode ser parcial.
+    # Aqui forçamos se_atual = min(bruto, última SE completa pelo calendário).
+    meta = channel_data.get('metadata', {})
+    se_bruta_meta = meta.get('se_atual', 0) or 0
+    se_completa_cal = se_ultima_completa()
+    se_atual_corrigida = min(se_bruta_meta, se_completa_cal) if se_bruta_meta else se_completa_cal
+    meta['se_atual'] = se_atual_corrigida
+    meta['se_atual_bruto'] = se_bruta_meta
+    meta['se_parcial'] = se_bruta_meta if se_bruta_meta > se_completa_cal else None
+    channel_data['metadata'] = meta
+    print(f"  metadata.se_atual: bruto={se_bruta_meta}, corrigida={se_atual_corrigida}, parcial={meta['se_parcial']}")
+
     import re
     with open(template_html, 'r') as f:
         html = f.read()
@@ -736,10 +810,14 @@ def step5_generate_html(channel_data, age_data, age_channels, boletim,
     ch_total = channel_data['channels'].get('Total de atendimentos', {})
     raw = ch_total.get('raw', [])
     se_list = ch_total.get('se_list', [])
-    last_se = 0
+    last_se_bruto = 0
     for r, se in zip(raw, se_list):
         if r.get('c2026', 0) > 0:
-            last_se = se
+            last_se_bruto = se
+    # Aplicar mesma regra de SE completa usada em step4 (consistência)
+    se_limite_cal = se_ultima_completa()
+    last_se = min(last_se_bruto, se_limite_cal)
+    print(f"  Calendário: última SE completa = SE{last_se} (bruta SE{last_se_bruto})")
 
     data_json = json.dumps(channel_data, separators=(',', ':'), ensure_ascii=False)
     html = re.sub(r'const DATA = \{.*?\};\s*\n', '', html, count=1, flags=re.DOTALL)
