@@ -576,29 +576,40 @@ function BoletimTab() {
         </p>
         <p style={{ color: "#64748b", fontSize: 12, margin: "0 0 16px" }}>
           {(() => {
-            const m = DATA.metadata;
-            const se = m.se_atual || 0;
-            const ano = m.ano_atual || new Date().getFullYear();
-            const se1 = new Date(ano === 2026 ? "2025-12-29" : `${ano-1}-12-29`);
-            const seStart = new Date(se1.getTime() + (se-1)*7*86400000);
-            const seEnd   = new Date(seStart.getTime() + 6*86400000);
+            // Usa o helper calcularSeEpi() (regra ISO/SINAN/MS) e seAnalise (SE completa)
+            // já calculados no escopo do componente. Evita o bug de timezone que ocorria
+            // com new Date("2025-12-29") interpretado como UTC midnight (deslocava 1 SE).
+            const ano = seCal.ano;
+            // Reconstruir intervalo da SE de análise a partir do seCal (que tem seStart/seEnd da SE em curso)
+            const seDiff = seCal.seEmCurso - seAnalise;
+            const seStart = new Date(seCal.seStart.getTime() - seDiff * 7 * 86400000);
+            const seEnd = new Date(seStart.getTime() + 6 * 86400000);
             const fmt = (d, showYear) => d.toLocaleDateString("pt-BR", {
               day: "numeric", month: "long", ...(showYear ? {year:"numeric"} : {})
             });
-            return se > 0
-              ? `SE ${se}/${ano} — ${fmt(seStart)} a ${fmt(seEnd, true)} · Dados de atendimentos por hipótese diagnóstica · Canais epidemiológicos: Modelo Gamma-Poisson Hierárquico`
+            return seAnalise > 0
+              ? `SE ${seAnalise}/${ano} — ${fmt(seStart)} a ${fmt(seEnd, true)} · Dados de atendimentos por hipótese diagnóstica · Canais epidemiológicos: Modelo Gamma-Poisson Hierárquico`
               : `Dados de atendimentos por hipótese diagnóstica · Canais epidemiológicos: Modelo Gamma-Poisson Hierárquico`;
           })()}
         </p>
-        <button onClick={downloadDocx} style={{
-          padding: "10px 24px", borderRadius: 10, border: "none", cursor: "pointer",
-          background: "linear-gradient(135deg, #6366f1, #8b5cf6)", color: "#fff",
-          fontSize: 14, fontWeight: 600, fontFamily: "DM Sans, sans-serif",
-          boxShadow: "0 4px 14px rgba(99,102,241,0.4)",
-          display: "inline-flex", alignItems: "center", gap: 8,
+        {/* Botão de download desabilitado temporariamente —
+            o DOCX_B64 embarcado contém dados antigos (SE9-11/2026) e o workflow
+            "Boletim Epidemiológico Semanal" tem bug pendente nos args --boletim --se-num.
+            Será reativado quando a geração dinâmica do .docx for restaurada. */}
+        <div style={{
+          padding: "10px 24px", borderRadius: 10,
+          background: "rgba(245,158,11,0.08)",
+          border: "1px solid rgba(245,158,11,0.25)",
+          color: "#fbbf24",
+          fontSize: 13, fontWeight: 500, fontFamily: "DM Sans, sans-serif",
+          display: "inline-flex", alignItems: "center", gap: 10,
         }}>
-          <span style={{ fontSize: 18 }}>⬇</span> Baixar Boletim (.docx)
-        </button>
+          <span style={{ fontSize: 16 }}>⚙</span>
+          <span>
+            <b>Boletim em revisão</b> — geração automática em manutenção.
+            Dados completos disponíveis no dashboard interativo abaixo.
+          </span>
+        </div>
 
         {/* Banner de transparência: pipeline vs calendário vs análise */}
         {(() => {
