@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Sala de Situação — UPAs Rio Claro/SP — Canais Sindrômicos Bayesianos</title>
+  <title>Sala de Situação / CIEVS — FMS Rio Claro/SP</title>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -231,15 +231,15 @@ function CustomTooltip({ active, payload, label, channelData, year }) {
       )}
       {ch && (
         <div style={{ fontSize: 11, color: "#94a3b8", lineHeight: 1.6 }}>
-          P10: {ch[0]} · P25: {ch[1]} · P50: {ch[2]}<br />
-          P75: {ch[3]} · P90: {ch[4]}
+          P10: {ch[0]} · Esperado: {ch[2]}<br />
+          Limite crítico: {ch[4]}
         </div>
       )}
     </div>
   );
 }
 
-// ── Gráfico principal: Canal Endêmico ────────────────────────────────
+// ── Gráfico principal: Canal Sindrômico ────────────────────────────────
 function EndemicChannelChart({ channelData, year, overlayYears = [], logScale = false, ageGroupSeries = [], ageChannel = null }) {
   const chartData = useMemo(() => {
     if (!channelData) return [];
@@ -319,21 +319,21 @@ function EndemicChannelChart({ channelData, year, overlayYears = [], logScale = 
         ) : (
           <>
             <Line type="monotone" dataKey="p10" stroke="#059669" strokeDasharray="4 4"
-                  dot={false} name="P10" strokeWidth={1} />
+                  dot={false} name="Atividade mínima" strokeWidth={1} />
             <Line type="monotone" dataKey="p25" stroke="#2563eb" strokeDasharray="4 4"
-                  dot={false} name="P25" strokeWidth={1} />
+                  dot={false} name="Zona normal (inferior)" strokeWidth={1} />
             <Line type="monotone" dataKey="p50" stroke="#d97706" strokeDasharray="4 4"
-                  dot={false} name="P50" strokeWidth={1.5} />
+                  dot={false} name="Frequência esperada" strokeWidth={1.5} />
             <Line type="monotone" dataKey="p75" stroke="#ea580c" strokeDasharray="4 4"
-                  dot={false} name="P75" strokeWidth={1} />
+                  dot={false} name="Zona normal (superior)" strokeWidth={1} />
             <Line type="monotone" dataKey="p90" stroke="#dc2626" strokeDasharray="4 4"
-                  dot={false} name="P90" strokeWidth={1.5} />
+                  dot={false} name="Limite crítico" strokeWidth={1.5} />
           </>
         )}
 
         {!logScale && (
           <Line type="monotone" dataKey="p50" stroke="#d97706" strokeDasharray="6 3"
-                dot={false} name="Mediana (P50)" strokeWidth={1.5} />
+                dot={false} name="Mediana" strokeWidth={1.5} />
         )}
 
         <Line type="monotone" dataKey="obs" stroke="#fbbf24" strokeWidth={2.5}
@@ -408,7 +408,7 @@ function ZoneLegend() {
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
         <div style={{ width: 20, height: 2, background: "#d97706", borderTop: "2px dashed #d97706" }} />
-        <span style={{ color: "#94a3b8" }}>Mediana (P50)</span>
+        <span style={{ color: "#94a3b8" }}>Mediana</span>
       </div>
     </div>
   );
@@ -503,7 +503,7 @@ function BoletimTab() {
       <th style="padding:7px 8px;text-align:left;font-size:11px;color:#475569;font-weight:700">Agravo</th>
       <th style="padding:7px 8px;text-align:left;font-size:11px;color:#475569;font-weight:700">Status</th>
       <th style="padding:7px 8px;text-align:right;font-size:11px;color:#475569;font-weight:700">Atend. 2026</th>
-      <th style="padding:7px 8px;text-align:right;font-size:11px;color:#475569;font-weight:700">Var% P50</th>
+      <th style="padding:7px 8px;text-align:right;font-size:11px;color:#475569;font-weight:700">Var% vs esperado</th>
       <th style="padding:7px 8px;text-align:center;font-size:11px;color:#475569;font-weight:700">Últ 4 SEs</th>
       <th style="padding:7px 8px;text-align:left;font-size:11px;color:#475569;font-weight:700">Recomendação</th>
     </tr></thead><tbody>`;
@@ -548,8 +548,7 @@ function BoletimTab() {
         ${sec("🟡 ALERTA — Atenção aumentada","#d97706",alerta_)}
         ${sec("🟢 CONTROLADO — Monitoramento de rotina","#16a34a",ok_)}
         <div style="margin-top:16px;padding:9px 12px;background:#f8fafc;border-left:3px solid #94a3b8;font-size:10px;color:#6b7280;line-height:1.6">
-          <b>Metodologia:</b> Canais endêmicos Gamma-Poisson hierárquico · Base histórica 2023–2025 · Status Fiocruz = pior zona últimas 2 SEs (padrão InfoGripe) · Var% vs mediana P50 de 2025 · Dados: UPAs Maestro/IDS Saúde.
-        </div>
+          <b>Fonte e método:</b> Atendimentos por hipótese diagnóstica nas UPAs da FMS · Classificação por probabilidade de ocorrência esperada · Padrão histórico 2023–2025</div>
         <div style="margin-top:14px;padding-top:8px;border-top:1px solid #e5e7eb;display:flex;justify-content:space-between;font-size:9px;color:#9ca3af">
           <span>FMS Rio Claro/SP · Vigilância Epidemiológica · EpiKanalis / EpiKinesis</span>
           <span>${hoje_.toLocaleDateString("pt-BR",{weekday:"long",day:"2-digit",month:"long",year:"numeric"})}</span>
@@ -700,8 +699,8 @@ function BoletimTab() {
               day: "numeric", month: "long", ...(showYear ? {year:"numeric"} : {})
             });
             return seAnalise > 0
-              ? `SE ${seAnalise}/${ano} — ${fmt(seStart)} a ${fmt(seEnd, true)} · Dados de atendimentos por hipótese diagnóstica · Canais epidemiológicos: Modelo Gamma-Poisson Hierárquico`
-              : `Dados de atendimentos por hipótese diagnóstica · Canais epidemiológicos: Modelo Gamma-Poisson Hierárquico`;
+              ? `SE ${seAnalise}/${ano} — ${fmt(seStart)} a ${fmt(seEnd, true)} · Dados de atendimentos por hipótese diagnóstica · Canais epidemiológicos: Sistema de Monitoramento Sindrômico`
+              : `Dados de atendimentos por hipótese diagnóstica · Canais epidemiológicos: Sistema de Monitoramento Sindrômico`;
           })()}
         </p>
         {/* Botão de download desabilitado temporariamente —
@@ -805,9 +804,11 @@ function BoletimTab() {
       <div style={cardStyle}>
         {sectionTitle("1. Panorama Geral")}
         <p style={{ color: "#cbd5e1", fontSize: 13, lineHeight: 1.8, margin: "0 0 12px" }}>
-          Este boletim apresenta a situação epidemiológica semanal das Unidades de Pronto Atendimento (UPAs)
-          de Rio Claro/SP, com base nos canais endêmicos bayesianos. O modelo Gamma-Poisson hierárquico
-          estima limiares preditivos (P10, P25, P50, P75 e P90) por semana epidemiológica, classificando
+          Este boletim apresenta o monitoramento sindrômico semanal das Unidades de Pronto Atendimento (UPAs)
+          da Fundação Municipal de Saúde (FMS) de Rio Claro/SP. Os dados representam o número de atendimentos
+          realizados por hipótese diagnóstica — sintomas ou doenças registradas nas UPAs — que estimam
+          indiretamente o número real de casos ocorridos na população do município. O sistema probabilidade de ocorrência esperada
+          estima limiares de probabilidade de ocorrência esperada por semana epidemiológica, classificando
           cada SE em cinco zonas: <span style={{color: "#22c55e"}}>Sucesso</span>,{" "}
           <span style={{color: "#3b82f6"}}>Segurança</span>,{" "}
           <span style={{color: "#f59e0b"}}>Alerta</span>,{" "}
@@ -815,9 +816,7 @@ function BoletimTab() {
           <span style={{color: "#ef4444"}}>Emergência</span>.
         </p>
         <p style={{ color: "#cbd5e1", fontSize: 13, lineHeight: 1.8, margin: "0 0 12px" }}>
-          A base histórica compreende 2022 a 2025 (anos completos). Os dados de 2026 são apresentados apenas
-          como observados, sem participar da estimação dos limiares, garantindo avaliação genuinamente preditiva
-          via <i>base histórica fixa (2023–2025)</i>.
+          Os dados de 2026 são apresentados como observados e comparados ao padrão histórico de atendimentos (2023–2025), garantindo avaliação prospectiva genuína.
         </p>
         <div style={{ background: "rgba(129,140,248,0.08)", padding: "10px 14px", borderRadius: 8,
           fontSize: 12, color: "#a5b4fc" }}>
@@ -902,10 +901,10 @@ function BoletimTab() {
 
         return (
           <div style={cardStyle}>
-            {sectionTitle(`2. Quadro Resumo — 2026 YTD (SE 1–${enriched[0]?.seN_analise || "?"}) vs 2025 Esperado (P50)`)}
+            {sectionTitle(`2. Quadro Resumo — 2026 YTD (SE 1–${enriched[0]?.seN_analise || "?"}) vs 2025 Esperado`)}
             <p style={{ color: "#94a3b8", fontSize: 12, margin: "0 0 12px", lineHeight: 1.6 }}>
-              Comparação sazonal: 2026 observado até a SE {enriched[0]?.seN_analise || "?"} (última SE completa) contra a soma das medianas históricas
-              (P50) nas mesmas SEs de 2025. <b>Status Fiocruz</b> = pior zona das últimas 2 SEs observadas
+              Comparação sazonal: 2026 observado até a SE {enriched[0]?.seN_analise || "?"} (última SE completa) contra a frequência esperada histórica
+              nas mesmas SEs de 2025. <b>Status Fiocruz</b> = pior zona das últimas 2 SEs observadas
               (padrão InfoGripe). Passe o mouse sobre o nome do agravo para ver o contexto histórico 2025.
             </p>
             <div style={{ overflowX: "auto" }}>
@@ -913,7 +912,7 @@ function BoletimTab() {
                 <thead>
                   <tr style={{ borderBottom: "2px solid rgba(255,255,255,0.1)" }}>
                     {[
-                      "Agravo", "Status Fiocruz", "2026 YTD", "2025 YTD (P50)", "Var%",
+                      "Agravo", "Status Fiocruz", "2026 YTD", "2025 Esperado", "Var%",
                       "Pico 2026", "Últ. 4 SEs", "Zonas 2026"
                     ].map(h => (
                       <th key={h} style={{ padding: "8px 6px", textAlign: "left", color: "#94a3b8",
@@ -1437,7 +1436,7 @@ function BoletimTab() {
       <div style={{ ...cardStyle, fontSize: 12, color: "#94a3b8", lineHeight: 1.8 }}>
         {sectionTitle("5. Nota Metodológica")}
         <p style={{ margin: "0 0 10px", color: "#cbd5e1" }}>
-          <b style={{ color: "#e2e8f0" }}>Modelo hierárquico Gamma-Poisson:</b> Para cada semana epidemiológica (SE),
+          <b style={{ color: "#e2e8f0" }}>Modelo :</b> Para cada semana epidemiológica (SE),
           o número de casos segue X ~ Poisson(λ·e), com λ ~ Gamma(a, b) como prior. A marginalização resulta
           em X ~ Binomial Negativa, capturando a sobredispersão típica de dados epidemiológicos.
         </p>
@@ -1446,13 +1445,13 @@ function BoletimTab() {
           excluindo-se aquele ano da base histórica, garantindo que os limiares são genuinamente preditivos.
         </p>
         <p style={{ margin: "0 0 10px", color: "#cbd5e1" }}>
-          <b style={{ color: "#e2e8f0" }}>Classificação em 5 zonas:</b> Os percentis P10, P25, P50, P75 e P90
+          <b style={{ color: "#e2e8f0" }}>Classificação em 5 zonas:</b> Os percentis probabilidade de ocorrência na semana epidemiológica
           da distribuição preditiva definem as zonas Sucesso (≤P25), Segurança (P25–P50), Alerta (P50–P75),
           Epidêmico (P75–P90) e Emergência ({">"}P90).
         </p>
         <p style={{ margin: "0 0 10px", color: "#cbd5e1" }}>
           <b style={{ color: "#e2e8f0" }}>Canais por faixa etária:</b> Para os 20 agravos prioritários,
-          canais endêmicos individuais foram calculados para 6 faixas etárias (Bebês, Crianças, Adolescentes,
+          canais sindrômicos individuais foram calculados para 6 faixas etárias (Bebês, Crianças, Adolescentes,
           Adultos jovens, Meia-idade e Idosos), permitindo análise estratificada no dashboard interativo.
         </p>
         <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: 10, marginTop: 10 }}>
@@ -1549,14 +1548,14 @@ function App() {
           background: "linear-gradient(90deg, #818cf8, #c084fc, #f472b6)",
           WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
         }}>
-          Sala de Situação — UPAs Rio Claro/SP
+          Sala de Situação / CIEVS — FMS Rio Claro/SP
         </h1>
         <p style={{ color: "#94a3b8", fontSize: 13, margin: "6px 0 0" }}>
-          Vigilância Epidemiológica · FMS Rio Claro · Modelo Gamma-Poisson Hierárquico
+          Vigilância Epidemiológica e Informação em Saúde · FMS Rio Claro/SP
         </p>
         {/* Tab navigation */}
         <div style={{ display: "flex", gap: 0, marginTop: 20, justifyContent: "center" }}>
-          {[["boletim", "Situação Atual"], ["dashboard", "Canal Endêmico"], ["cids_prioritarios", "CIDs Prioritários"], ["notificacao", "Notificação Compulsória"]].map(([key, label]) => (
+          {[["boletim", "Situação Atual"], ["dashboard", "Canal Sindrômico"], ["cids_prioritarios", "CIDs Prioritários"], ["notificacao", "Notificação Compulsória"]].map(([key, label]) => (
             <button key={key} onClick={() => {
               const defaults = {dashboard: "capitulos", cids_prioritarios: "secaoA", notificacao: "imediata", boletim: null};
               const cat = defaults[key];
@@ -1736,7 +1735,7 @@ function App() {
         <KpiCard label="Total do ano" value={kpi.total || 0} color="#60a5fa" />
         <KpiCard label="Pico" value={kpi.pico || 0} sub={`SE ${kpi.pico_se || "?"}`}
                  color="#f472b6" />
-        <KpiCard label="SE acima P90" value={kpi.se_acima_p90 || 0}
+        <KpiCard label="SEs em zona crítica" value={kpi.se_acima_p90 || 0}
                  sub={`de ${channelData?.se_list?.length || 52}`}
                  color={kpi.se_acima_p90 > 10 ? "#ef4444" : "#34d399"} />
       </div>
@@ -1756,10 +1755,10 @@ function App() {
         <div style={{ marginTop: 10 }}><ZoneLegend /></div>
       </div>
 
-      {/* Canal Endêmico */}
+      {/* Canal Sindrômico */}
       <div style={cardStyle}>
         <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>
-          Canal Endêmico — {selectedAgravo}
+          Canal Sindrômico — {selectedAgravo}
           {ageChannel && <span style={{
             fontSize: 11, fontWeight: 500, marginLeft: 12,
             background: "rgba(129,140,248,0.2)", color: "#a5b4fc",
@@ -1773,7 +1772,7 @@ function App() {
       {/* Exceedance */}
       <div style={cardStyle}>
         <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>
-          Razão de Exceedance (Observado / P90) — {year}
+          Excedência Semanal (Observado vs Limite Crítico) — {year}
         </div>
         <ExceedanceChart channelData={channelData} year={year} />
       </div>
@@ -1784,7 +1783,7 @@ function App() {
           Metodologia
         </div>
         <p style={{ margin: "0 0 8px" }}>
-          <b>Modelo hierárquico Gamma-Poisson:</b> Para cada semana epidemiológica (SE),
+          <b>Modelo :</b> Para cada semana epidemiológica (SE),
           o número de casos segue X ~ Poisson(λ·e), com λ ~ Gamma(a, b) como prior.
           A marginalização resulta em X ~ Binomial Negativa, capturando a sobredispersão
           típica de dados epidemiológicos.
@@ -1794,7 +1793,7 @@ function App() {
           aquele ano da base histórica, garantindo que os limiares são genuinamente preditivos.
         </p>
         <p style={{ margin: "0 0 8px" }}>
-          <b>Classificação em 5 zonas:</b> Percentis P10, P25, P50, P75 e P90 da distribuição
+          <b>Classificação em 5 zonas:</b> Percentis probabilidade de ocorrência na semana epidemiológica da distribuição
           preditiva definem as zonas Sucesso (≤P25), Segurança (P25–P50), Alerta (P50–P75),
           Epidêmico (P75–P90) e Emergência ({">"}P90).
         </p>
