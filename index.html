@@ -408,7 +408,7 @@ function ZoneLegend() {
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
         <div style={{ width: 20, height: 2, background: "#d97706", borderTop: "2px dashed #d97706" }} />
-        <span style={{ color: "#94a3b8" }}>Mediana</span>
+        <span style={{ color: "#94a3b8" }}>Esperado</span>
       </div>
     </div>
   );
@@ -1643,7 +1643,8 @@ function App() {
         </div>
       )}
 
-      {/* Sub-botões dos agravos */}
+      {/* Sub-botões dos agravos — ocultar quando sinExpanded ativo (evita duplicação) */}
+      {!(activeTab === "cids_prioritarios" && sinExpanded) && (
       <div style={{ display: "flex", gap: 6, marginBottom: 16, flexWrap: "wrap", justifyContent: "center" }}>
         {filteredAgravos.map(a => (
           <button key={a} onClick={() => { setSelectedAgravo(a); setSelectedYear(null); setOverlayYears([]); }} style={{
@@ -1655,13 +1656,14 @@ function App() {
           }}>{a.length > 40 ? a.substring(0, 37) + "..." : a}</button>
         ))}
       </div>
+      )}
 
       {/* Sem dados para agravo selecionado */}
       {!channelData && (
         <div style={{ textAlign: "center", padding: "48px 24px", color: "#64748b" }}>
           <div style={{ fontSize: 32, marginBottom: 12 }}>📊</div>
           <div style={{ fontSize: 15, fontWeight: 600, color: "#94a3b8" }}>Sem dados disponíveis</div>
-          <div style={{ fontSize: 12, marginTop: 6 }}>Canal endêmico ainda não computado para <b style={{color:"#818cf8"}}>{selectedAgravo}</b></div>
+          <div style={{ fontSize: 12, marginTop: 6 }}>Canal sindrômico ainda não computado para <b style={{color:"#818cf8"}}>{selectedAgravo}</b></div>
           <div style={{ fontSize: 11, marginTop: 4, color: "#475569" }}>Será disponibilizado na próxima execução do pipeline.</div>
         </div>
       )}
