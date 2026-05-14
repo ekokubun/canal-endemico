@@ -116,7 +116,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add channel_data.json index.html
+          git add channel_data.json age_group_data.json age_channels.json boletim_data.json index.html
           git diff --cached --quiet && echo "Sem alterações" && exit 0
           SE=$(python3 -c "
           import json, datetime
