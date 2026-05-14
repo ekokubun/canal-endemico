@@ -779,7 +779,8 @@ def _gerar_grafico_canal(channel_data, agravos_plot, se_atual, monitor_year='202
 # ══════════════════════════════════════════════════════════════════════
 
 def step6_boletim_docx(boletim_data, channel_data, se_num, output_html,
-                       municipio='Rio Claro/SP', monitor_year='2026'):
+                       municipio='Rio Claro/SP', monitor_year='2026',
+                       se_label=None):
     print("\n" + "=" * 60)
     print("STEP 6: Gerando boletim DOCX")
     print("=" * 60)
@@ -850,8 +851,9 @@ def step6_boletim_docx(boletim_data, channel_data, se_num, output_html,
 
     p3 = doc.add_paragraph()
     p3.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    _se_header = se_label if se_label else f'Semana Epidemiológica {se_num}/{monitor_year}'
     r3 = p3.add_run(
-        f'Semana Epidemiológica {se_num}/{monitor_year} '
+        f'{_se_header} '
         f'· Gerado em {now.strftime("%d/%m/%Y")} '
         f'· EpiKanalis / EpiKinesis Inteligência Ltda.')
     r3.font.size = Pt(9); r3.italic = True
@@ -1159,7 +1161,9 @@ def step6_boletim_docx(boletim_data, channel_data, se_num, output_html,
 def main():
     parser = argparse.ArgumentParser(
         description='Pipeline completo: CSV → Dashboard HTML atualizado')
-    parser.add_argument('input',    help='CSV de entrada (dados brutos IDS Saúde)')
+    parser.add_argument('input', nargs='?', default=None,
+                        help='CSV de entrada (dados brutos IDS Saúde). '
+                             'Opcional quando --from-json é usado.')
     parser.add_argument('--pop',    type=int, default=210000,
                         help='População do município (default: 210000)')
     parser.add_argument('--output', '-o', default='index.html',
@@ -1170,8 +1174,57 @@ def main():
                         help='Gerar boletim epidemiológico em DOCX além do HTML')
     parser.add_argument('--se-num', type=int, default=None,
                         help='Número da SE corrente para o boletim (auto-detecta se omitido)')
+    parser.add_argument('--se-year', type=int, default=None,
+                        help='Ano da SE (default: 2026)')
+    parser.add_argument('--se-label', type=str, default=None,
+                        help='Rótulo textual da SE para o cabeçalho do boletim '
+                             '(ex.: "SE 19/2026 — 6 a 12 de maio de 2026")')
+    parser.add_argument('--from-json', type=str, default=None,
+                        help='Pula steps 1-3 e 5 e gera APENAS o boletim DOCX a partir '
+                             'de um channel_data.json existente. Implica --boletim.')
 
     args = parser.parse_args()
+
+    # ── Modo boletim-only: a partir de channel_data.json ──────────────
+    if args.from_json:
+        print("╔══════════════════════════════════════════════════════════╗")
+        print("║ Pipeline — Modo boletim DOCX (sem reprocessar pipeline)  ║")
+        print("╚══════════════════════════════════════════════════════════╝")
+        print(f"  channel_data.json: {args.from_json}")
+        if args.se_label:
+            print(f"  {args.se_label}")
+        with open(args.from_json, 'r', encoding='utf-8') as f:
+            channel_data = json.load(f)
+        boletim = step4_boletim(channel_data)
+
+        se_num = args.se_num
+        if se_num is None:
+            for item in boletim:
+                if item.get('se_2026', 0) > 0:
+                    se_num = item['se_2026']
+                    break
+        if se_num is None:
+            from datetime import date
+            hoje = date.today()
+            jan1 = date(hoje.year, 1, 1)
+            se_num = max(1, (hoje - jan1).days // 7 + 1)
+            print(f"  SE auto-detectada: {se_num}")
+
+        monitor_year = str(args.se_year) if args.se_year else '2026'
+        step6_boletim_docx(
+            boletim_data=boletim,
+            channel_data=channel_data,
+            se_num=se_num,
+            output_html=args.output,
+            monitor_year=monitor_year,
+            se_label=args.se_label,
+        )
+        print(f"\n✓ Boletim gerado: boletim_SE{se_num}.docx")
+        return
+
+    # ── Modo completo: requer CSV ─────────────────────────────────────
+    if args.input is None:
+        parser.error("input (CSV) é obrigatório quando --from-json não é usado")
 
     print("╔══════════════════════════════════════════════════════════╗")
     print("║ Pipeline Canal Endêmico — Atualização Automática         ║")
