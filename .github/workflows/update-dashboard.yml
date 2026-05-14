@@ -26,7 +26,7 @@ jobs:
           python-version: '3.11'
 
       - name: Instalar dependências
-        run: pip install pandas numpy
+        run: pip install pandas numpy matplotlib python-docx
 
       - name: Identificar origem do trigger
         run: |
