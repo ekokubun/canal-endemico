@@ -25,7 +25,7 @@ jobs:
           python-version: '3.11'
 
       - name: Instalar dependências
-        run: pip install pandas numpy python-docx
+        run: pip install pandas numpy python-docx matplotlib
 
       - name: Identificar SE anterior completa
         id: se_info
@@ -73,7 +73,7 @@ jobs:
             --from-json channel_data.json \
             --output index.html \
             --se-num "$SE_NUM" \
-            --se-year "$SE_YEAR" \ 
+            --se-year "$SE_YEAR" \
             --se-label "$SE_LABEL"
 
       - name: Commit e push
