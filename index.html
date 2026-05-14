@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Tendências de Atendimentos em UPAs — Canais Sindrômicos Bayesianos</title>
+  <title>Sala de Situação — UPAs Rio Claro/SP — Canais Sindrômicos Bayesianos</title>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -457,32 +457,105 @@ function BoletimTab() {
   const sePartialExists = sePipeline > seCal.seUltimaCompleta;
   const sePartial = sePartialExists ? sePipeline : null;
 
-  const downloadDocx = () => {
-    const byteChars = atob(DOCX_B64);
-    const byteNumbers = new Array(byteChars.length);
-    for (let i = 0; i < byteChars.length; i++) byteNumbers[i] = byteChars.charCodeAt(i);
-    const byteArray = new Uint8Array(byteNumbers);
-    const blob = new Blob([byteArray], {type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document"});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    // Nome do arquivo: Canais Sindromicos UPAs yyyy SEss dd/mm a dd/mm
-    const jan4_ = new Date(new Date().getFullYear(), 0, 4);
-    const se1_  = new Date(jan4_.getTime() - jan4_.getDay() * 86400000);
-    const hoje_ = new Date();
-    const seN_  = Math.floor((hoje_ - se1_) / (7 * 86400000)) + 1;
-    const seEnd_ = new Date(se1_.getTime() + (seN_ - 1) * 7 * 86400000 + 6 * 86400000);
-    const seC_  = seEnd_ < hoje_ ? seN_ : seN_ - 1;
-    const seStart_ = new Date(se1_.getTime() + (seC_ - 1) * 7 * 86400000);
-    const seEnd2_ = new Date(seStart_.getTime() + 6 * 86400000);
-    const pad_ = n => String(n).padStart(2, '0');
-    const fmtDate_ = d => `${pad_(d.getDate())}/${pad_(d.getMonth()+1)}`;
-    const ano_ = seStart_.getFullYear();
-    const ss_  = pad_(seC_);
-    const fileName_ = `Canais Sindromicos UPAs ${ano_} SE${ss_} ${fmtDate_(seStart_)} a ${fmtDate_(seEnd2_)}.docx`;
-    a.download = fileName_;
-    a.click();
-    URL.revokeObjectURL(url);
+  const gerarBoletimPDF = () => {
+    const jan4_=new Date(new Date().getFullYear(),0,4);
+    const se1_=new Date(jan4_.getTime()-jan4_.getDay()*86400000);
+    const hoje_=new Date();
+    const seN_=Math.floor((hoje_-se1_)/(7*86400000))+1;
+    const seEnd_=new Date(se1_.getTime()+(seN_-1)*7*86400000+6*86400000);
+    const seC_=seEnd_<hoje_?seN_:seN_-1;
+    const seStart_=new Date(se1_.getTime()+(seC_-1)*7*86400000);
+    const seEnd2_=new Date(seStart_.getTime()+6*86400000);
+    const pad_=n=>String(n).padStart(2,"0");
+    const fmtDate_=d=>`${pad_(d.getDate())}/${pad_(d.getMonth()+1)}/${d.getFullYear()}`;
+    const ano_=seStart_.getFullYear();const ss_=pad_(seC_);
+    const zonaRank_={emergencia:4,epidemico:3,alerta:2,seguranca:1,sucesso:0};
+    const zonaCor_={emergencia:"#ef4444",epidemico:"#f97316",alerta:"#f59e0b",seguranca:"#3b82f6",sucesso:"#22c55e"};
+    const zonaNome_={emergencia:"Emergência",epidemico:"Epidêmico",alerta:"Alerta",seguranca:"Segurança",sucesso:"Sucesso"};
+    const zonaEmoji_={emergencia:"🔴",epidemico:"🟠",alerta:"🟡",seguranca:"🔵",sucesso:"🟢"};
+    const enriched_=BOLETIM_DATA.map(item=>{
+      const ch=DATA.channels[item.name];const seN=item.se_2026||0;
+      let zonas_seq=[],obs_ytd=0,p50_ytd=null;
+      if(ch&&ch.classifications&&ch.classifications["2026"])zonas_seq=ch.classifications["2026"].slice(0,seN);
+      if(ch&&ch.raw)obs_ytd=ch.raw.filter(r=>r.se<=seN).reduce((s,r)=>s+(r.c2026||0),0);
+      if(ch&&ch.channels&&ch.channels["2025"])p50_ytd=ch.channels["2025"].slice(0,seN).reduce((s,row)=>s+(row[2]||0),0);
+      const ult2=zonas_seq.slice(-2);
+      const status=ult2.length===0?"sucesso":["sucesso","seguranca","alerta","epidemico","emergencia"][Math.max(...ult2.map(z=>zonaRank_[z]||0))];
+      const var_pct=p50_ytd>0?((obs_ytd-p50_ytd)/p50_ytd*100):null;
+      return{...item,status_fiocruz:status,obs_ytd,p50_ytd,var_pct,zonas_seq,seN};
+    }).sort((a,b)=>(zonaRank_[b.status_fiocruz]||0)-(zonaRank_[a.status_fiocruz]||0));
+    const emergencia_=enriched_.filter(d=>d.status_fiocruz==="emergencia");
+    const epidemico_=enriched_.filter(d=>d.status_fiocruz==="epidemico");
+    const alerta_=enriched_.filter(d=>d.status_fiocruz==="alerta");
+    const ok_=enriched_.filter(d=>["sucesso","seguranca"].includes(d.status_fiocruz));
+    const limpaName=n=>n.replace("SINAN: ","").replace(/^[IVX]+ - /,"").trim();
+    const rowH=item=>{
+      const cor=zonaCor_[item.status_fiocruz]||"#6b7280";
+      const vS=item.var_pct!=null?`<span style="color:${item.var_pct>=10?"#dc2626":item.var_pct<=-10?"#16a34a":"#6b7280"};font-weight:700">${item.var_pct>0?"+":""}${item.var_pct.toFixed(1)}%</span>`:"—";
+      const sp=item.zonas_seq.slice(-4).map(z=>zonaEmoji_[z]||"·").join(" ");
+      return `<tr style="border-bottom:1px solid #e5e7eb"><td style="padding:7px 8px;font-size:12px;font-weight:600">${limpaName(item.name)}</td>
+        <td style="padding:7px 8px"><span style="background:${cor}22;color:${cor};padding:3px 9px;border-radius:5px;font-size:11px;font-weight:700;border:1px solid ${cor}44">${zonaNome_[item.status_fiocruz]}</span></td>
+        <td style="padding:7px 8px;text-align:right;font-family:monospace;font-size:12px">${item.obs_ytd.toLocaleString("pt-BR")}</td>
+        <td style="padding:7px 8px;text-align:right;font-size:12px">${vS}</td>
+        <td style="padding:7px 8px;text-align:center;font-size:15px;letter-spacing:3px">${sp}</td>
+        <td style="padding:7px 8px;font-size:11px;color:#6b7280">${item.acao||"Monitoramento de rotina."}</td></tr>`;};
+    const tH=`<table style="width:100%;border-collapse:collapse;margin-top:6px"><thead><tr style="background:#f1f5f9;border-bottom:2px solid #cbd5e1">
+      <th style="padding:7px 8px;text-align:left;font-size:11px;color:#475569;font-weight:700">Agravo</th>
+      <th style="padding:7px 8px;text-align:left;font-size:11px;color:#475569;font-weight:700">Status</th>
+      <th style="padding:7px 8px;text-align:right;font-size:11px;color:#475569;font-weight:700">Atend. 2026</th>
+      <th style="padding:7px 8px;text-align:right;font-size:11px;color:#475569;font-weight:700">Var% P50</th>
+      <th style="padding:7px 8px;text-align:center;font-size:11px;color:#475569;font-weight:700">Últ 4 SEs</th>
+      <th style="padding:7px 8px;text-align:left;font-size:11px;color:#475569;font-weight:700">Recomendação</th>
+    </tr></thead><tbody>`;
+    const sec=(title,cor,items)=>items.length===0?"":`<div style="margin-bottom:16px;break-inside:avoid">
+      <div style="font-size:13px;font-weight:700;color:${cor};padding:6px 10px;background:${cor}11;border-left:4px solid ${cor};border-radius:0 4px 4px 0;margin-bottom:4px">${title} <span style="font-size:11px;opacity:0.7">(${items.length})</span></div>
+      ${tH}${items.map(rowH).join("")}</tbody></table></div>`;
+    const win=window.open("","_blank");
+    win.document.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">
+      <title>Boletim VE FMRC SE${ss_} ${ano_}</title>
+      <style>@page{size:A4;margin:16mm 14mm}@media print{.np{display:none!important}body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+      body{font-family:"Segoe UI",Arial,sans-serif;color:#1f2937;font-size:13px;line-height:1.5;margin:0}
+      h1{margin:0;font-size:20px;color:#1e3a5f}h2{font-size:12px;font-weight:700;color:#374151;margin:14px 0 5px;padding-bottom:4px;border-bottom:2px solid #e5e7eb;text-transform:uppercase;letter-spacing:.5px}</style>
+    </head><body>
+      <div class="np" style="background:#1e3a5f;color:#fff;padding:10px 20px;display:flex;align-items:center;gap:16px;position:sticky;top:0;z-index:99">
+        <span style="font-weight:600;font-size:13px">Boletim VE/FMRC · SE ${ss_}/${ano_} · ${fmtDate_(hoje_)}</span>
+        <button onclick="window.print()" style="background:#6366f1;color:#fff;border:none;padding:7px 18px;border-radius:6px;cursor:pointer;font-size:13px;font-weight:700">🖨 Imprimir / Salvar PDF</button>
+        <span style="font-size:11px;opacity:.7">Use "Salvar como PDF" para distribuir por e-mail</span>
+      </div>
+      <div style="max-width:740px;margin:0 auto;padding:20px 16px">
+        <div style="border-bottom:3px solid #1e3a5f;padding-bottom:10px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:flex-start">
+          <div>
+            <div style="font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:1px;margin-bottom:3px">Vigilância Epidemiológica · Fundação Municipal de Saúde · Rio Claro/SP</div>
+            <h1>Boletim Epidemiológico Semanal</h1>
+            <div style="font-size:12px;color:#6b7280;margin-top:3px">SE ${ss_}/${ano_} · ${fmtDate_(seStart_)} a ${fmtDate_(seEnd2_)} · Hipóteses diagnósticas UPAs</div>
+          </div>
+          <div style="text-align:right;font-size:10px;color:#9ca3af">Gerado: ${hoje_.toLocaleDateString("pt-BR")}<br><span style="font-size:9px">ekokubun.github.io/canal-endemico</span></div>
+        </div>
+        <h2>Quadro de situação — SE ${ss_}/${ano_}</h2>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:18px">
+          ${[
+            {n:emergencia_.length+epidemico_.length,label:"Emergência / Epidêmico",cor:"#ef4444",bg:"#fef2f2",border:"#ef4444",names:[...emergencia_,...epidemico_].map(d=>limpaName(d.name)).join(", ")},
+            {n:alerta_.length,label:"Alerta",cor:"#d97706",bg:"#fffbeb",border:"#f59e0b",names:alerta_.map(d=>limpaName(d.name)).join(", ")},
+            {n:ok_.length,label:"Controlado",cor:"#16a34a",bg:"#f0fdf4",border:"#22c55e",names:"Dentro do esperado"},
+          ].map(c=>`<div style="background:${c.bg};border:2px solid ${c.border};border-radius:8px;padding:12px;text-align:center">
+            <div style="font-size:36px;font-weight:700;color:${c.cor};line-height:1">${c.n}</div>
+            <div style="font-size:11px;font-weight:700;color:${c.cor};text-transform:uppercase;margin:3px 0 5px">${c.label}</div>
+            <div style="font-size:9.5px;color:#6b7280">${c.names||"—"}</div>
+          </div>`).join("")}
+        </div>
+        ${sec("🔴 EMERGÊNCIA — Ação imediata necessária","#ef4444",emergencia_)}
+        ${sec("🟠 EPIDÊMICO — Mobilização reforçada","#f97316",epidemico_)}
+        ${sec("🟡 ALERTA — Atenção aumentada","#d97706",alerta_)}
+        ${sec("🟢 CONTROLADO — Monitoramento de rotina","#16a34a",ok_)}
+        <div style="margin-top:16px;padding:9px 12px;background:#f8fafc;border-left:3px solid #94a3b8;font-size:10px;color:#6b7280;line-height:1.6">
+          <b>Metodologia:</b> Canais endêmicos Gamma-Poisson hierárquico · Base histórica 2023–2025 · Status Fiocruz = pior zona últimas 2 SEs (padrão InfoGripe) · Var% vs mediana P50 de 2025 · Dados: UPAs Maestro/IDS Saúde.
+        </div>
+        <div style="margin-top:14px;padding-top:8px;border-top:1px solid #e5e7eb;display:flex;justify-content:space-between;font-size:9px;color:#9ca3af">
+          <span>FMS Rio Claro/SP · Vigilância Epidemiológica · EpiKanalis / EpiKinesis</span>
+          <span>${hoje_.toLocaleDateString("pt-BR",{weekday:"long",day:"2-digit",month:"long",year:"numeric"})}</span>
+        </div>
+      </div></body></html>`);
+    win.document.close();
   };
 
   const cardStyle = {
@@ -556,8 +629,50 @@ function BoletimTab() {
   const modItems = BOLETIM_DATA.filter(d => d.prioridade === "MODERADA");
   const baixaItems = BOLETIM_DATA.filter(d => d.prioridade === "BAIXA");
 
+  // Semáforo calculado a partir dos canais reais
+  const semaforo = { emergencia: [], epidemico: [], alerta: [], seguranca: [], sucesso: [] };
+  BOLETIM_DATA.forEach(item => {
+    const ch = DATA.channels[item.name];
+    if (!ch || !ch.classifications || !ch.classifications["2026"]) return;
+    const zonas = ch.classifications["2026"].slice(0, seCal.seUltimaCompleta);
+    const ult2 = zonas.slice(-2);
+    const zonaRankS = {sucesso:0,seguranca:1,alerta:2,epidemico:3,emergencia:4};
+    const status = ult2.length === 0 ? "sucesso"
+      : ["sucesso","seguranca","alerta","epidemico","emergencia"][Math.max(...ult2.map(z => zonaRankS[z]||0))];
+    if (semaforo[status]) semaforo[status].push(item.name.replace("SINAN: ","").replace(/^[IVX]+ - /,"").trim());
+  });
+
   return (
     <div style={{ maxWidth: 960, margin: "0 auto" }}>
+      {/* ═══ Hero Semáforo ═══ */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 20 }}>
+        {[
+          { label: "Emergência / Epidêmico", cor: "#ef4444",
+            items: [...semaforo.emergencia, ...semaforo.epidemico],
+            bg: "rgba(239,68,68,0.08)", border: "rgba(239,68,68,0.3)" },
+          { label: "Alerta", cor: "#f59e0b", items: semaforo.alerta,
+            bg: "rgba(245,158,11,0.08)", border: "rgba(245,158,11,0.3)" },
+          { label: "Controlado", cor: "#22c55e",
+            items: [...semaforo.sucesso, ...semaforo.seguranca],
+            bg: "rgba(34,197,94,0.08)", border: "rgba(34,197,94,0.3)" },
+        ].map(({ label, cor, items, bg, border }) => (
+          <div key={label} style={{ background: bg, border: `1px solid ${border}`,
+            borderRadius: 14, padding: "18px 16px", textAlign: "center" }}>
+            <div style={{ fontSize: 44, fontWeight: 700, color: cor, lineHeight: 1 }}>
+              {items.length}
+            </div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: cor,
+              textTransform: "uppercase", letterSpacing: 0.8, margin: "5px 0 8px" }}>
+              {label}
+            </div>
+            <div style={{ fontSize: 10, color: "#94a3b8", lineHeight: 1.6 }}>
+              {items.length === 0 ? "—"
+                : items.slice(0,3).join(", ") + (items.length > 3 ? ` +${items.length-3} mais` : "")}
+            </div>
+          </div>
+        ))}
+      </div>
+
       {/* ═══ Cabeçalho institucional ═══ */}
       <div style={{ ...cardStyle, textAlign: "center", background: "linear-gradient(135deg, rgba(99,102,241,0.1), rgba(168,85,247,0.1))" }}>
         <div style={{ fontSize: 11, color: "#818cf8", textTransform: "uppercase", letterSpacing: 2, marginBottom: 8 }}>
@@ -593,20 +708,16 @@ function BoletimTab() {
             o DOCX_B64 embarcado contém dados antigos (SE9-11/2026) e o workflow
             "Boletim Epidemiológico Semanal" tem bug pendente nos args --boletim --se-num.
             Será reativado quando a geração dinâmica do .docx for restaurada. */}
-        <div style={{
-          padding: "10px 24px", borderRadius: 10,
-          background: "rgba(245,158,11,0.08)",
-          border: "1px solid rgba(245,158,11,0.25)",
-          color: "#fbbf24",
-          fontSize: 13, fontWeight: 500, fontFamily: "DM Sans, sans-serif",
+        <button onClick={gerarBoletimPDF} style={{
+          padding: "12px 32px", borderRadius: 10, border: "none", cursor: "pointer",
+          background: "linear-gradient(90deg, #6366f1, #8b5cf6)",
+          color: "#fff", fontSize: 14, fontWeight: 700, fontFamily: "DM Sans, sans-serif",
           display: "inline-flex", alignItems: "center", gap: 10,
+          boxShadow: "0 4px 14px rgba(99,102,241,0.4)",
         }}>
-          <span style={{ fontSize: 16 }}>⚙</span>
-          <span>
-            <b>Boletim em revisão</b> — geração automática em manutenção.
-            Dados completos disponíveis no dashboard interativo abaixo.
-          </span>
-        </div>
+          <span style={{ fontSize: 20 }}>📄</span>
+          Baixar Boletim para Distribuição
+        </button>
 
         {/* Banner de transparência: pipeline vs calendário vs análise */}
         {(() => {
@@ -784,6 +895,10 @@ function BoletimTab() {
           : v <= -25 ? "#22c55e"
           : v <= -10 ? "#3b82f6"
           : "#94a3b8";
+
+        // Ordenar por urgência
+        const zonaRankOrd = {emergencia:4, epidemico:3, alerta:2, seguranca:1, sucesso:0};
+        enriched.sort((a, b) => (zonaRankOrd[b.status_fiocruz]||0) - (zonaRankOrd[a.status_fiocruz]||0));
 
         return (
           <div style={cardStyle}>
@@ -1359,7 +1474,7 @@ function App() {
   const [overlayYears, setOverlayYears] = useState([]);
   const [logScale, setLogScale] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState("capitulos");
-  const [activeTab, setActiveTab] = useState("dashboard");
+  const [activeTab, setActiveTab] = useState("boletim");
   const [activeAgeGroups, setActiveAgeGroups] = useState([]);
   const [sinExpanded, setSinExpanded] = useState(false);
 
@@ -1434,14 +1549,14 @@ function App() {
           background: "linear-gradient(90deg, #818cf8, #c084fc, #f472b6)",
           WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
         }}>
-          Tendências de Atendimentos em UPAs
+          Sala de Situação — UPAs Rio Claro/SP
         </h1>
         <p style={{ color: "#94a3b8", fontSize: 13, margin: "6px 0 0" }}>
-          Canais Sindrômicos Bayesianos · Rio Claro/SP · Modelo Gamma-Poisson Hierárquico
+          Vigilância Epidemiológica · FMS Rio Claro · Modelo Gamma-Poisson Hierárquico
         </p>
         {/* Tab navigation */}
         <div style={{ display: "flex", gap: 0, marginTop: 20, justifyContent: "center" }}>
-          {[["dashboard", "Canal Endêmico"], ["cids_prioritarios", "CIDs Prioritários"], ["notificacao", "Notificação Compulsória"], ["boletim", "Boletim Semanal"]].map(([key, label]) => (
+          {[["boletim", "Situação Atual"], ["dashboard", "Canal Endêmico"], ["cids_prioritarios", "CIDs Prioritários"], ["notificacao", "Notificação Compulsória"]].map(([key, label]) => (
             <button key={key} onClick={() => {
               const defaults = {dashboard: "capitulos", cids_prioritarios: "secaoA", notificacao: "imediata", boletim: null};
               const cat = defaults[key];
