@@ -69,8 +69,9 @@ jobs:
           SE_LABEL: ${{ steps.se_info.outputs.se_label }}
         run: |
           echo "Gerando boletim: $SE_LABEL"
-          python3 pipeline.py channel_data.json index.html \
-            --boletim \
+          python3 pipeline.py \
+            --from-json channel_data.json \
+            --output index.html \
             --se-num "$SE_NUM" \
             --se-year "$SE_YEAR" \
             --se-label "$SE_LABEL"
@@ -81,7 +82,7 @@ jobs:
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add index.html boletim_*.docx 2>/dev/null || true
+          git add boletim_*.docx 2>/dev/null || true
           git diff --cached --quiet && echo "Sem alterações" && exit 0
           git commit -m "Boletim semanal — $SE_LABEL"
           git push
