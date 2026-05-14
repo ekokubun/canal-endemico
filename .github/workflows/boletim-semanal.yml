@@ -73,7 +73,7 @@ jobs:
             --from-json channel_data.json \
             --output index.html \
             --se-num "$SE_NUM" \
-            --se-year "$SE_YEAR" \
+            --se-year "$SE_YEAR" \ 
             --se-label "$SE_LABEL"
 
       - name: Commit e push
