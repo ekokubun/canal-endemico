@@ -150,10 +150,17 @@ def classify_zone(value, thresholds):
 # Step 1: Rodar compute_channels.py
 # ══════════════════════════════════════════════════════════════════════
 
-def step1_compute_channels(csv_path, pop, channel_json='channel_data.json'):
+def step1_compute_channels(csv_path, pop, channel_json='channel_data.json', skip_recompute=False):
     print("\n" + "=" * 60)
-    print("STEP 1: Computando canais endêmicos principais")
+    print("STEP 1: Canais endêmicos principais")
     print("=" * 60)
+    import os
+    if skip_recompute and os.path.exists(channel_json):
+        print(f"  → --no-recompute: lendo {channel_json} existente (pulando compute_channels.py)")
+        with open(channel_json, 'r') as f:
+            data = json.load(f)
+        print(f"  → {len(data['channels'])} canais carregados do JSON")
+        return data
     cmd = [
         sys.executable, 'compute_channels.py',
         csv_path,
@@ -1194,6 +1201,8 @@ def main():
     parser.add_argument('--se-label', type=str, default=None,
                         help='Rótulo textual da SE para o cabeçalho do boletim '
                              '(ex.: "SE 19/2026 — 6 a 12 de maio de 2026")')
+    parser.add_argument('--no-recompute', action='store_true', default=False,
+                        help='Pula compute_channels.py e le channel_data.json existente.')
     parser.add_argument('--from-json', type=str, default=None,
                         help='Pula steps 1-3 e 5 e gera APENAS o boletim DOCX a partir '
                              'de um channel_data.json existente. Implica --boletim.')
@@ -1250,7 +1259,8 @@ def main():
     if args.boletim:
         print(f"  Boletim DOCX: SIM (SE={args.se_num or 'auto-detectar'})")
 
-    channel_data = step1_compute_channels(args.input, args.pop)
+    channel_data = step1_compute_channels(args.input, args.pop,
+                                           skip_recompute=args.no_recompute)
     age_data     = step2_age_group_data(args.input, channel_data)
     age_channels = step3_age_channels(age_data)
     boletim      = step4_boletim(channel_data)
