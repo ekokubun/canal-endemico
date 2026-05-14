@@ -526,7 +526,7 @@ function BoletimTab() {
         <div style="border-bottom:3px solid #1e3a5f;padding-bottom:10px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:flex-start">
           <div>
             <div style="font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:1px;margin-bottom:3px">Vigilância Epidemiológica · Fundação Municipal de Saúde · Rio Claro/SP</div>
-            <h1>Boletim Epidemiológico Semanal</h1>
+            <h1>Boletim Sindrômico de Atendimentos nas UPAs</h1>
             <div style="font-size:12px;color:#6b7280;margin-top:3px">SE ${ss_}/${ano_} · ${fmtDate_(seStart_)} a ${fmtDate_(seEnd2_)} · Hipóteses diagnósticas UPAs</div>
           </div>
           <div style="text-align:right;font-size:10px;color:#9ca3af">Gerado: ${hoje_.toLocaleDateString("pt-BR")}<br><span style="font-size:9px">ekokubun.github.io/canal-endemico</span></div>
@@ -680,7 +680,7 @@ function BoletimTab() {
         <h2 style={{ fontSize: 24, fontWeight: 700, margin: "0 0 4px",
           background: "linear-gradient(90deg, #818cf8, #c084fc, #f472b6)",
           WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-          Boletim Epidemiológico Semanal
+          Boletim Sindrômico de Atendimentos nas UPAs
         </h2>
         <p style={{ color: "#94a3b8", fontSize: 13, margin: "0 0 4px" }}>
           Tendências de Atendimentos — Hipóteses Diagnósticas nas UPAs · Rio Claro/SP
@@ -705,7 +705,7 @@ function BoletimTab() {
         </p>
         {/* Botão de download desabilitado temporariamente —
             o DOCX_B64 embarcado contém dados antigos (SE9-11/2026) e o workflow
-            "Boletim Epidemiológico Semanal" tem bug pendente nos args --boletim --se-num.
+            "Boletim Sindrômico de Atendimentos nas UPAs" tem bug pendente nos args --boletim --se-num.
             Será reativado quando a geração dinâmica do .docx for restaurada. */}
         <button onClick={gerarBoletimPDF} style={{
           padding: "12px 32px", borderRadius: 10, border: "none", cursor: "pointer",
