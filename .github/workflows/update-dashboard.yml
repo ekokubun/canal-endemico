@@ -110,7 +110,7 @@ jobs:
 
       - name: Gerar index.html
         run: |
-          python3 pipeline.py dados_ids.csv --output index.html
+          python3 pipeline.py dados_ids.csv --no-recompute --output index.html
 
       - name: Gerar Boletim Sindromico HTML
         run: |
