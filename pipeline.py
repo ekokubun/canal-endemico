@@ -10,7 +10,7 @@ Este script:
 2. Agrega dados por faixa etária para 20 agravos prioritários
 3. Computa canais Gamma-Poisson por faixa etária
 4. Gera boletim enriquecido
-5. Monta o index.html final com todos os dados embutidos
+5. Escreve 4 JSONs estáticos + atualiza timestamps no HTML
 6. (Opcional) Gera boletim epidemiológico em DOCX (--boletim)
 """
 
@@ -549,67 +549,81 @@ def step4_boletim(channel_data):
 
 def step5_generate_html(channel_data, age_data, age_channels, boletim,
                         template_html, output_html):
+    """Escreve 4 JSONs estáticos e atualiza apenas timestamps no HTML.
+
+    REFACTOR: Em vez de embutir os JSONs inline no HTML (operação lenta
+    de vários MB), escreve 4 arquivos .json separados e toca apenas as
+    strings de data no HTML. O browser carrega os JSONs via fetch() na
+    inicialização do app.
+
+    Arquivos gerados (ao lado de index.html):
+        channel_data.json    – canais principais
+        age_group_data.json  – dados brutos por faixa etária
+        age_channels.json    – canais Gamma-Poisson por faixa etária
+        boletim_data.json    – boletim enriquecido
+    """
     print("\n" + "=" * 60)
-    print("STEP 5: Gerando HTML final")
+    print("STEP 5: Escrevendo JSONs estáticos + atualizando timestamps")
     print("=" * 60)
 
-    with open(template_html, 'r') as f:
+    out_dir = Path(output_html).parent
+
+    # ── 1. Escrever os 4 arquivos JSON separados ──────────────────
+    payloads = {
+        "channel_data.json":   channel_data,
+        "age_group_data.json": age_data,
+        "age_channels.json":   build_age_channels_compact(age_channels),
+        "boletim_data.json":   boletim,
+    }
+
+    for fname, payload in payloads.items():
+        dest = out_dir / fname
+        with open(dest, "w", encoding="utf-8") as f:
+            json.dump(payload, f, separators=(",", ":"), ensure_ascii=False)
+        size_kb = dest.stat().st_size / 1024
+        print(f"   ✓ {fname}: {size_kb:,.0f} KB")
+
+    # ── 2. Atualizar apenas os timestamps no HTML ─────────────────
+    with open(template_html, "r", encoding="utf-8") as f:
         html = f.read()
 
-    now    = datetime.now()
-    now_br = now.strftime('%d/%m/%Y')
+    now_br = datetime.now().strftime("%d/%m/%Y")
 
-    ch_total = channel_data['channels'].get('Total de atendimentos', {})
-    raw      = ch_total.get('raw', [])
-    se_list  = ch_total.get('se_list', [])
-    last_se  = 0
-    for r, se in zip(raw, se_list):
-        if r.get('c2026', 0) > 0:
-            last_se = se
-
-    data_json = json.dumps(channel_data, separators=(',', ':'), ensure_ascii=False)
-    import re
-    html = re.sub(r'const DATA = \{.*?\};\s*\n', '', html, count=1, flags=re.DOTALL)
-    script_pos = html.find('<script type="text/babel">') + len('<script type="text/babel">')
-    html = html[:script_pos] + f"\nconst DATA = {data_json};\n" + html[script_pos:]
-
-    age_json = json.dumps(age_data, separators=(',', ':'), ensure_ascii=False)
-    html = re.sub(r'const AGE_GROUP_DATA = \{.*?\};\s*\n', '', html, count=1, flags=re.DOTALL)
-    insert_after = html.find('const DATA = ')
-    insert_after = html.find(';\n', insert_after) + 2
-    html = html[:insert_after] + f"const AGE_GROUP_DATA = {age_json};\n" + html[insert_after:]
-
-    ac_compact = build_age_channels_compact(age_channels)
-    ac_json = json.dumps(ac_compact, separators=(',', ':'), ensure_ascii=False)
-    html = re.sub(r'const AGE_CHANNELS = \{.*?\};\s*\n', '', html, count=1, flags=re.DOTALL)
-    insert_after = html.find('const AGE_COLORS = ')
-    insert_after = html.find('};\n', insert_after) + 3
-    html = html[:insert_after] + f"const AGE_CHANNELS = {ac_json};\n" + html[insert_after:]
-
-    bol_json = json.dumps(boletim, separators=(',', ':'), ensure_ascii=False)
-    html = re.sub(r'const BOLETIM_DATA = \[.*?\];\s*\n', '', html, count=1, flags=re.DOTALL)
-    insert_after = html.find('const AGE_CHANNELS = ')
-    insert_after = html.find(';\n', insert_after) + 2
-    html = html[:insert_after] + f"const BOLETIM_DATA = {bol_json};\n" + html[insert_after:]
+    # Detectar última SE com dados em 2026
+    ch_ref = channel_data["channels"].get(
+        "Total de atendimentos",
+        next(iter(channel_data["channels"].values()), {}),
+    )
+    raw_ref = ch_ref.get("raw", [])
+    se_list = ch_ref.get("se_list", [])
+    last_se = max(
+        (se for r, se in zip(raw_ref, se_list) if r.get("c2026", 0) > 0),
+        default=0,
+    )
 
     html = re.sub(
         r'Última extração: <b[^>]*>[\d/]+</b>',
-        f'Última extração: <b style={{{{ color: "#fbbf24" }}}}>{now_br}</b>', html)
+        f'Última extração: <b style={{{{ color: "#fbbf24" }}}}>{now_br}</b>',
+        html,
+    )
     html = re.sub(
         r'Dados até: <b[^>]*>[\d/]+</b> \(SE \d+\)',
-        f'Dados até: <b style={{{{ color: "#60a5fa" }}}}>{now_br}</b> (SE {last_se})', html)
+        f'Dados até: <b style={{{{ color: "#60a5fa" }}}}>{now_br}</b> (SE {last_se})',
+        html,
+    )
     html = re.sub(
         r'Gerado em: <b[^>]*>[\d/]+</b>',
-        f'Gerado em: <b style={{{{ color: "#a5b4fc" }}}}>{now_br}</b>', html)
-    html = re.sub(r'SE \d+/2026', f'SE {last_se}/2026', html)
+        f'Gerado em: <b style={{{{ color: "#a5b4fc" }}}}>{now_br}</b>',
+        html,
+    )
+    html = re.sub(r"SE \d+/2026", f"SE {last_se}/2026", html)
 
-    with open(output_html, 'w') as f:
+    with open(output_html, "w", encoding="utf-8") as f:
         f.write(html)
-    size_mb = os.path.getsize(output_html) / (1024 * 1024)
-    print(f"  → {output_html}: {size_mb:.1f} MB")
-    print(f"  → Datas atualizadas: extração={now_br}, SE={last_se}/2026")
 
-
+    size_kb = Path(output_html).stat().st_size / 1024
+    print(f"   ✓ {output_html}: {size_kb:,.0f} KB  (somente timestamps)")
+    print(f"   → extração={now_br}  SE={last_se}/2026")
 def build_age_channels_compact(ac_data):
     result = {}
     for agravo in ac_data:
