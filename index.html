@@ -1555,7 +1555,7 @@ function App() {
         </p>
         {/* Tab navigation */}
         <div style={{ display: "flex", gap: 0, marginTop: 20, justifyContent: "center" }}>
-          {[["boletim", "Situação Atual"], ["dashboard", "Canal Sindrômico"], ["cids_prioritarios", "CIDs Prioritários"], ["notificacao", "Notificação Compulsória"]].map(([key, label]) => (
+          {[["boletim", "Situação Atual"], ["dashboard", "Canal Sindrômico"], ["cids_prioritarios", "CIDs Prioritários"], ["notificacao", "Notificação Compulsória"], ["boletins_hist", "📋 Boletins"]].map(([key, label]) => (
             <button key={key} onClick={() => {
               const defaults = {dashboard: "capitulos", cids_prioritarios: "secaoA", notificacao: "imediata", boletim: null};
               const cat = defaults[key];
