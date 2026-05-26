@@ -6257,23 +6257,47 @@ def run_pipeline(input_file, populations, output_file,
             _state = json.load(f)
         _state_channels = _state.get('channels', {})
 
-        for name, agg_df in results.items():
-            agg_df = agg_df[~agg_df['ano'].isin(EXCLUDED_YEARS)].copy()
-            if name in _state_channels:
-                ch = _rebuild_from_state(_state_channels[name], agg_df, populations, _mon_year)
-                if ch is not None:
-                    all_channels[name] = ch
-                    continue
-            # Novo agravo (não estava no state) — calcular normalmente
-            print(f"   ⚡ Novo agravo '{name}' não encontrado no state — computando...")
-            years_available = sorted(agg_df['ano'].unique())
-            if len(years_available) < 1:
-                continue
-            ch = compute_endemic_channel(
-                agg_df, populations, agravo_name=name,
-                leave_one_out=False, base_hist_years=BASE_HIST_YEARS,
-                use_mle=True, monitor_year=_mon_year)
-            all_channels[name] = ch
+        # Índice de 2026: código CID → (nome, agg_df) para match robusto
+        # O código é a parte antes do primeiro ' - ' (ex: 'A09', 'X - Aparelho respiratório')
+        _results_by_code = {}
+        for rname, rdf in results.items():
+            code = rname.split(' - ')[0].strip()
+            _results_by_code[code] = (rname, rdf)
+
+        # 1. Reconstruir TODOS os canais históricos do state (preserva nome canônico)
+        for state_name, state_ch in _state_channels.items():
+            state_code = state_name.split(' - ')[0].strip()
+
+            # Match 1: nome exato
+            if state_name in results:
+                agg_2026 = results[state_name][~results[state_name]['ano'].isin(EXCLUDED_YEARS)].copy()
+            # Match 2: código CID (robusto a drift de descrição)
+            elif state_code in _results_by_code:
+                _, agg_2026 = _results_by_code[state_code]
+                agg_2026 = agg_2026[~agg_2026['ano'].isin(EXCLUDED_YEARS)].copy()
+            else:
+                # Canal histórico sem dados em 2026 (c2026 = 0 para todas as SEs)
+                agg_2026 = pd.DataFrame({'ano': pd.Series(dtype=int),
+                                         'se':  pd.Series(dtype=int),
+                                         'casos': pd.Series(dtype=int)})
+
+            ch = _rebuild_from_state(state_ch, agg_2026, populations, _mon_year)
+            if ch is not None:
+                all_channels[state_name] = ch
+
+        # 2. Adicionar canais genuinamente novos (em 2026 mas não no state)
+        _state_codes = {sn.split(' - ')[0].strip() for sn in _state_channels}
+        for rname, agg_df in results.items():
+            rcode = rname.split(' - ')[0].strip()
+            if rname not in all_channels and rcode not in _state_codes:
+                print(f"   ⚡ Novo agravo '{rname}' — computando...")
+                agg_df = agg_df[~agg_df['ano'].isin(EXCLUDED_YEARS)].copy()
+                if len(agg_df) > 0:
+                    ch = compute_endemic_channel(
+                        agg_df, populations, agravo_name=rname,
+                        leave_one_out=False, base_hist_years=BASE_HIST_YEARS,
+                        use_mle=True, monitor_year=_mon_year)
+                    all_channels[rname] = ch
 
         print(f"   {len(all_channels)} canais atualizados (sem MLE/MC — params congelados)")
 
