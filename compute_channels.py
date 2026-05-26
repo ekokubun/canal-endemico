@@ -478,17 +478,43 @@ def _rebuild_from_state(state_ch, new_obs_df, populations, mon_year):
     # Anos presentes no raw
     years = sorted({int(k[1:]) for r in raw for k in r if k.startswith('c')})
 
-    # Classificações + exceedance com thresholds congelados
-    clf, exc = [], []
-    for i, s in enumerate(se_list):
-        obs = new_obs.get(s, 0)
-        t   = frozen[i]  # [p10, p25, p50, p75, p90]
-        clf.append(classify_zone(obs, t))
-        exc.append(round(obs / max(t[4], 1), 3))
+    # Reconstruir obs por ano a partir do raw (para heatmap histórico)
+    obs_by_year = {}
+    for r in raw:
+        s = int(r['se'])
+        for k, v in r.items():
+            if k.startswith('c') and k[1:].isdigit():
+                y = int(k[1:])
+                if y not in obs_by_year:
+                    obs_by_year[y] = {}
+                obs_by_year[y][s] = v
 
-    # KPIs
-    cases_year = [new_obs.get(s, 0) for s in se_list]
-    max_cases  = max(cases_year) if cases_year else 0
+    # Channels e Classifications para TODOS os anos (mesmo frozen — base_hist_years fixo)
+    # Necessário para heatmap histórico e seleção de ano no dashboard
+    channels_all = {}
+    classifications_all = {}
+    exceedance_all = {}
+    kpis_all = {}
+
+    for y in years:
+        obs_y = obs_by_year.get(y, {})
+        clf_y, exc_y = [], []
+        for i, s in enumerate(se_list):
+            obs = obs_y.get(s, 0)
+            t   = frozen[i]
+            clf_y.append(classify_zone(obs, t))
+            exc_y.append(round(obs / max(t[4], 1), 3))
+        channels_all[str(y)]     = frozen
+        classifications_all[str(y)] = clf_y
+        exceedance_all[str(y)]   = exc_y
+        cases_y = [obs_y.get(s, 0) for s in se_list]
+        max_c   = max(cases_y) if cases_y else 0
+        kpis_all[str(y)] = {
+            'total':        sum(cases_y),
+            'pico':         max_c,
+            'pico_se':      se_list[cases_y.index(max_c)] if max_c > 0 else 0,
+            'se_acima_p90': sum(1 for i, s in enumerate(se_list) if obs_y.get(s, 0) > frozen[i][4])
+        }
 
     return {
         'agravo':          state_ch['agravo'],
@@ -496,17 +522,11 @@ def _rebuild_from_state(state_ch, new_obs_df, populations, mon_year):
         'se_list':         se_list,
         'populations':     {str(k): int(v) for k, v in populations.items()},
         'raw':             raw,
-        'channels':        {ch_key: frozen},
+        'channels':        channels_all,
         'params':          state_ch['params'],
-        'classifications': {ch_key: clf},
-        'exceedance':      {ch_key: exc},
-        'kpis': {ch_key: {
-            'total':       sum(cases_year),
-            'pico':        max_cases,
-            'pico_se':     se_list[cases_year.index(max_cases)] if max_cases > 0 else 0,
-            'se_acima_p90': sum(1 for i, s in enumerate(se_list)
-                               if new_obs.get(s, 0) > frozen[i][4])
-        }}
+        'classifications': classifications_all,
+        'exceedance':      exceedance_all,
+        'kpis':            kpis_all,
     }
 
 
