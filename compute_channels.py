@@ -6145,11 +6145,20 @@ def run_pipeline(input_file, populations, output_file,
                         .sort_values(ascending=False)
                         .head(n))
 
+            # Tabela invertida code→desc para enriquecer nomes quando cid_descricao==cid_codigo
+            _code_to_desc = {}
+            for _d, _c in CID_DESC_TO_CODE.items():
+                if _c not in _code_to_desc:
+                    _code_to_desc[_c] = _d
+
             for cid_code in top_cids.index:
                 if pd.isna(cid_code) or cid_code is None:
                     continue
                 df_cid = df_proc[df_proc['cid_codigo'] == cid_code].copy()
                 desc = df_cid[col_cid].mode().iloc[0] if len(df_cid) > 0 else cid_code
+                # Se desc == cid_code (CSV histórico sem descrição), enriquecer via DATASUS
+                if desc == cid_code and cid_code in _code_to_desc:
+                    desc = _code_to_desc[cid_code]
                 name = f"{cid_code} - {desc}" if cid_code != desc else cid_code
                 agg = df_cid.groupby(['ano_epi', 'semana_epi'])[col_qty].sum().reset_index()
                 agg.columns = ['ano', 'se', 'casos']
