@@ -6280,19 +6280,23 @@ def run_pipeline(input_file, populations, output_file,
             # Match 1: nome exato
             if state_name in results:
                 agg_2026 = results[state_name][~results[state_name]['ano'].isin(EXCLUDED_YEARS)].copy()
+                output_name = state_name
             # Match 2: código CID (robusto a drift de descrição)
             elif state_code in _results_by_code:
-                _, agg_2026 = _results_by_code[state_code]
+                result_name, agg_2026 = _results_by_code[state_code]
                 agg_2026 = agg_2026[~agg_2026['ano'].isin(EXCLUDED_YEARS)].copy()
+                # Preferir nome enriquecido de results (com descrição DATASUS) se state_name é código nu
+                output_name = result_name if (state_name == state_code and result_name != state_code) else state_name
             else:
                 # Canal histórico sem dados em 2026 (c2026 = 0 para todas as SEs)
                 agg_2026 = pd.DataFrame({'ano': pd.Series(dtype=int),
                                          'se':  pd.Series(dtype=int),
                                          'casos': pd.Series(dtype=int)})
+                output_name = state_name
 
             ch = _rebuild_from_state(state_ch, agg_2026, populations, _mon_year)
             if ch is not None:
-                all_channels[state_name] = ch
+                all_channels[output_name] = ch
 
         # 2. Adicionar canais genuinamente novos (em 2026 mas não no state)
         _state_codes = {sn.split(' - ')[0].strip() for sn in _state_channels}
