@@ -6141,7 +6141,12 @@ def run_pipeline(input_file, populations, output_file,
             if isinstance(agravos, str) and agravos.startswith('top_'):
                 n = int(agravos.split('_')[1])
 
-            top_cids = (df_proc.groupby('cid_codigo')[col_qty].sum()
+            # Em modo incremental, usar df completo (todos os anos) para selecionar
+            # os top CIDs — garante que canais históricos (ex: A90 com pico em 2024)
+            # não desaparecem em anos de baixo volume. A agregação dos dados continua
+            # usando df_proc (ano monitorado apenas). Fix: bug A90 2026 = 0. [ekokubun]
+            _df_for_topn = df if _incremental else df_proc
+            top_cids = (_df_for_topn.groupby('cid_codigo')[col_qty].sum()
                         .sort_values(ascending=False)
                         .head(n))
 
