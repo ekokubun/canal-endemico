@@ -413,6 +413,103 @@ def compute_endemic_channel(
     }
 
 
+# ── Helpers para pipeline incremental ────────────────────────────────
+
+def _save_channel_state(all_channels, path, base_hist_years, mon_year):
+    """Salva params congelados (shape/rate/thresholds + raw histórico) para runs incrementais.
+
+    Chamado apenas no run completo (janeiro / primeiro run).
+    Em runs subsequentes, _rebuild_from_state() usa este arquivo.
+    """
+    state = {
+        'generated': pd.Timestamp.now().isoformat(),
+        'base_hist_years': base_hist_years,
+        'monitor_year': mon_year,
+        'channels': {}
+    }
+    for name, ch in all_channels.items():
+        # raw_hist: todas as SEs de todos os anos EXCETO o ano monitorado
+        raw_hist = [{k: v for k, v in r.items() if k != f'c{mon_year}'}
+                    for r in ch['raw']]
+        state['channels'][name] = {
+            'agravo':   ch['agravo'],
+            'se_list':  ch['se_list'],
+            'channels': ch['channels'],   # thresholds P10-P90 por SE — CONGELADOS
+            'params':   ch['params'],     # shape/rate por SE — CONGELADOS
+            'raw_hist': raw_hist,         # c2023/c2024/c2025 por SE — CONGELADOS
+        }
+    with open(path, 'w', encoding='utf-8') as f:
+        json.dump(state, f, ensure_ascii=False, separators=(',', ':'), cls=NumpyEncoder)
+    size_kb = Path(path).stat().st_size / 1024
+    print(f"   → channel_state.json salvo ({size_kb:.0f} KB, {len(state['channels'])} canais)")
+
+
+def _rebuild_from_state(state_ch, new_obs_df, populations, mon_year):
+    """Reconstrói canal a partir de params congelados + observações novas do ano monitorado.
+
+    Sem MLE nem Monte Carlo — usa thresholds já calculados.
+    new_obs_df: DataFrame [ano, se, casos] com apenas o ano monitorado.
+    """
+    se_list = state_ch['se_list']
+    ch_key  = str(mon_year)
+
+    # Thresholds congelados (P10-P90) — da chave mon_year ou primeira disponível
+    frozen = state_ch['channels'].get(ch_key)
+    if frozen is None:
+        frozen = list(state_ch['channels'].values())[0] if state_ch['channels'] else None
+    if frozen is None:
+        return None  # agravo sem histórico válido
+
+    # Novas observações de 2026 por SE
+    new_obs = {}
+    for _, row in new_obs_df[new_obs_df['ano'] == mon_year].iterrows():
+        s = int(row['se'])
+        if 1 <= s <= MAX_SE:
+            new_obs[s] = int(row['casos'])
+
+    # Reconstruir raw: histórico + c_mon_year
+    raw = []
+    for r_hist in state_ch['raw_hist']:
+        s = int(r_hist['se'])
+        entry = dict(r_hist)
+        entry[f'c{mon_year}'] = new_obs.get(s, 0)
+        raw.append(entry)
+
+    # Anos presentes no raw
+    years = sorted({int(k[1:]) for r in raw for k in r if k.startswith('c')})
+
+    # Classificações + exceedance com thresholds congelados
+    clf, exc = [], []
+    for i, s in enumerate(se_list):
+        obs = new_obs.get(s, 0)
+        t   = frozen[i]  # [p10, p25, p50, p75, p90]
+        clf.append(classify_zone(obs, t))
+        exc.append(round(obs / max(t[4], 1), 3))
+
+    # KPIs
+    cases_year = [new_obs.get(s, 0) for s in se_list]
+    max_cases  = max(cases_year) if cases_year else 0
+
+    return {
+        'agravo':          state_ch['agravo'],
+        'years':           years,
+        'se_list':         se_list,
+        'populations':     {str(k): int(v) for k, v in populations.items()},
+        'raw':             raw,
+        'channels':        {ch_key: frozen},
+        'params':          state_ch['params'],
+        'classifications': {ch_key: clf},
+        'exceedance':      {ch_key: exc},
+        'kpis': {ch_key: {
+            'total':       sum(cases_year),
+            'pico':        max_cases,
+            'pico_se':     se_list[cases_year.index(max_cases)] if max_cases > 0 else 0,
+            'se_acima_p90': sum(1 for i, s in enumerate(se_list)
+                               if new_obs.get(s, 0) > frozen[i][4])
+        }}
+    }
+
+
 # ── Agregação de dados brutos ────────────────────────────────────────
 
 def aggregate_raw_data(df, col_date, col_cid, col_qty='quantidade',
@@ -5985,23 +6082,36 @@ def run_pipeline(input_file, populations, output_file,
     else:
         populations = {int(k): int(v) for k, v in populations.items()}
 
+    # ── Modo incremental: filtrar CSV ao ano monitorado ──────────────
+    _channel_state_path = Path(output_file).parent / 'channel_state.json'
+    _incremental = skip_channel_estimation and _channel_state_path.exists()
+    _mon_year = monitor_year or _ano_atual
+
+    if _incremental:
+        print(f"   Modo INCREMENTAL detectado (channel_state.json presente)")
+        df_proc = df[df['ano_epi'] == _mon_year].copy()
+        print(f"   Filtrando para {_mon_year}: {len(df_proc)} linhas (de {len(df)} total)")
+    else:
+        df_proc = df
+    # ─────────────────────────────────────────────────────────────────
+
     print(f"[2/5] Agregando dados por agravo...")
 
     # Determinar agrupamentos
     results = {}
 
     # Sempre incluir "Todos"
-    agg_all = aggregate_raw_data(df, col_date, col_cid, col_qty, group_by='all')
+    agg_all = aggregate_raw_data(df_proc, col_date, col_cid, col_qty, group_by='all')
     results.update(agg_all)
 
     if not use_desc_fallback:
         # Caminho normal: tem códigos CID → capítulos e SINAN
         if agravos in ('all', 'chapters') or (isinstance(agravos, str) and agravos.startswith('top')):
-            agg_ch = aggregate_raw_data(df, col_date, 'cid_codigo', col_qty, group_by='chapter')
+            agg_ch = aggregate_raw_data(df_proc, col_date, 'cid_codigo', col_qty, group_by='chapter')
             results.update(agg_ch)
 
         if agravos in ('all', 'sinan'):
-            agg_sinan = aggregate_raw_data(df, col_date, 'cid_codigo', col_qty, group_by='sinan')
+            agg_sinan = aggregate_raw_data(df_proc, col_date, 'cid_codigo', col_qty, group_by='sinan')
             # Prefixar com "SINAN: " para identificação no dashboard
             agg_sinan = {f"SINAN: {k}": v for k, v in agg_sinan.items()}
             results.update(agg_sinan)
@@ -6011,14 +6121,14 @@ def run_pipeline(input_file, populations, output_file,
             if isinstance(agravos, str) and agravos.startswith('top_'):
                 n = int(agravos.split('_')[1])
 
-            top_cids = (df.groupby('cid_codigo')[col_qty].sum()
+            top_cids = (df_proc.groupby('cid_codigo')[col_qty].sum()
                         .sort_values(ascending=False)
                         .head(n))
 
             for cid_code in top_cids.index:
                 if pd.isna(cid_code) or cid_code is None:
                     continue
-                df_cid = df[df['cid_codigo'] == cid_code].copy()
+                df_cid = df_proc[df_proc['cid_codigo'] == cid_code].copy()
                 desc = df_cid[col_cid].mode().iloc[0] if len(df_cid) > 0 else cid_code
                 name = f"{cid_code} - {desc}" if cid_code != desc else cid_code
                 agg = df_cid.groupby(['ano_epi', 'semana_epi'])[col_qty].sum().reset_index()
@@ -6027,13 +6137,13 @@ def run_pipeline(input_file, populations, output_file,
                 results[name] = agg
 
         # ── Síndromes e sentinelas de saúde coletiva ──────────────────
-        if agravos == 'all' and 'cid_codigo' in df.columns:
+        if agravos == 'all' and 'cid_codigo' in df_proc.columns:
             for syn_name, syn_prefixes in SYNDROME_DEFS.items():
-                mask = df['cid_codigo'].apply(
+                mask = df_proc['cid_codigo'].apply(
                     lambda x: any(str(x).startswith(p) for p in syn_prefixes)
                     if pd.notna(x) else False
                 )
-                df_syn = df[mask]
+                df_syn = df_proc[mask]
                 if len(df_syn) > 0:
                     agg_syn = df_syn.groupby(['ano_epi', 'semana_epi'])[col_qty].sum().reset_index()
                     agg_syn.columns = ['ano', 'se', 'casos']
@@ -6050,8 +6160,8 @@ def run_pipeline(input_file, populations, output_file,
 
         # Capítulos via desc_to_chapter()
         if agravos in ('all', 'chapters') or (isinstance(agravos, str) and agravos.startswith('top')):
-            if '_chapter_from_desc' in df.columns:
-                df_ch = df[df['_chapter_from_desc'].notna()].copy()
+            if '_chapter_from_desc' in df_proc.columns:
+                df_ch = df_proc[df_proc['_chapter_from_desc'].notna()].copy()
                 if len(df_ch) > 0:
                     for ch, gdf in df_ch.groupby('_chapter_from_desc'):
                         agg_c = gdf.groupby(['ano_epi', 'semana_epi'])[col_qty].sum().reset_index()
@@ -6064,11 +6174,11 @@ def run_pipeline(input_file, populations, output_file,
         # SINAN via palavras-chave na descrição
         if agravos in ('all', 'sinan'):
             # Mapear descrições para códigos CID via dicionário, depois checar SINAN
-            if col_desc in df.columns:
-                df['_sinan_from_desc'] = df[col_desc].apply(
+            if col_desc in df_proc.columns:
+                df_proc['_sinan_from_desc'] = df_proc[col_desc].apply(
                     lambda d: cid_to_sinan(desc_to_cid_code(d)) if desc_to_cid_code(d) else 'Outros'
                 )
-                df_sinan = df[df['_sinan_from_desc'] != 'Outros']
+                df_sinan = df_proc[df_proc['_sinan_from_desc'] != 'Outros']
                 if len(df_sinan) > 0:
                     for sinan_name, gdf in df_sinan.groupby('_sinan_from_desc'):
                         agg_s = gdf.groupby(['ano_epi', 'semana_epi'])[col_qty].sum().reset_index()
@@ -6081,11 +6191,11 @@ def run_pipeline(input_file, populations, output_file,
 
         # Top N descrições como CIDs individuais
         n = 30
-        df['_desc_clean'] = df[col_desc].astype(str).str.strip()
-        df = df[df['_desc_clean'] != '']
-        df = df[df['_desc_clean'] != 'nan']
+        df_proc['_desc_clean'] = df_proc[col_desc].astype(str).str.strip()
+        df_proc = df_proc[df_proc['_desc_clean'] != '']
+        df_proc = df_proc[df_proc['_desc_clean'] != 'nan']
 
-        top_descs = (df.groupby('_desc_clean')[col_qty].sum()
+        top_descs = (df_proc.groupby('_desc_clean')[col_qty].sum()
                      .sort_values(ascending=False)
                      .head(n))
 
@@ -6096,7 +6206,7 @@ def run_pipeline(input_file, populations, output_file,
             # Tentar obter código CID para nome mais limpo
             cid_code = desc_to_cid_code(str(desc_name))
             display_name = f"{cid_code} - {desc_name}" if cid_code else str(desc_name)
-            df_desc = df[df['_desc_clean'] == desc_name].copy()
+            df_desc = df_proc[df_proc['_desc_clean'] == desc_name].copy()
             agg = df_desc.groupby(['ano_epi', 'semana_epi'])[col_qty].sum().reset_index()
             agg.columns = ['ano', 'se', 'casos']
             agg = agg[agg['se'] <= MAX_SE]
@@ -6119,25 +6229,58 @@ def run_pipeline(input_file, populations, output_file,
     print(f"[4/5] Computando canais endêmicos (Gamma-Poisson)...")
 
     all_channels = {}
-    for i, (name, agg_df) in enumerate(results.items()):
-        # Filtrar anos excluídos (implantação / dados inconsistentes)
-        agg_df = agg_df[~agg_df['ano'].isin(EXCLUDED_YEARS)].copy()
-        years_available = sorted(agg_df['ano'].unique())
-        if len(years_available) < 1:
-            continue
 
-        ch = compute_endemic_channel(
-            agg_df, populations,
-            agravo_name=name,
-            leave_one_out=False,
-            base_hist_years=BASE_HIST_YEARS,
-            use_mle=True,
-            monitor_year=monitor_year
-        )
-        all_channels[name] = ch
+    if _incremental:
+        # ── Modo incremental: sem MLE/MC ──────────────────────────────
+        print(f"   Modo INCREMENTAL: carregando params congelados de channel_state.json...")
+        with open(_channel_state_path, encoding='utf-8') as f:
+            _state = json.load(f)
+        _state_channels = _state.get('channels', {})
 
-        if (i + 1) % 5 == 0 or i == len(results) - 1:
-            print(f"   {i+1}/{len(results)} agravos processados...")
+        for name, agg_df in results.items():
+            agg_df = agg_df[~agg_df['ano'].isin(EXCLUDED_YEARS)].copy()
+            if name in _state_channels:
+                ch = _rebuild_from_state(_state_channels[name], agg_df, populations, _mon_year)
+                if ch is not None:
+                    all_channels[name] = ch
+                    continue
+            # Novo agravo (não estava no state) — calcular normalmente
+            print(f"   ⚡ Novo agravo '{name}' não encontrado no state — computando...")
+            years_available = sorted(agg_df['ano'].unique())
+            if len(years_available) < 1:
+                continue
+            ch = compute_endemic_channel(
+                agg_df, populations, agravo_name=name,
+                leave_one_out=False, base_hist_years=BASE_HIST_YEARS,
+                use_mle=True, monitor_year=_mon_year)
+            all_channels[name] = ch
+
+        print(f"   {len(all_channels)} canais atualizados (sem MLE/MC — params congelados)")
+
+    else:
+        # ── Modo completo: MLE + Monte Carlo ─────────────────────────
+        for i, (name, agg_df) in enumerate(results.items()):
+            # Filtrar anos excluídos (implantação / dados inconsistentes)
+            agg_df = agg_df[~agg_df['ano'].isin(EXCLUDED_YEARS)].copy()
+            years_available = sorted(agg_df['ano'].unique())
+            if len(years_available) < 1:
+                continue
+
+            ch = compute_endemic_channel(
+                agg_df, populations,
+                agravo_name=name,
+                leave_one_out=False,
+                base_hist_years=BASE_HIST_YEARS,
+                use_mle=True,
+                monitor_year=monitor_year
+            )
+            all_channels[name] = ch
+
+            if (i + 1) % 5 == 0 or i == len(results) - 1:
+                print(f"   {i+1}/{len(results)} agravos processados...")
+
+        # Salvar params congelados para runs incrementais futuros
+        _save_channel_state(all_channels, _channel_state_path, BASE_HIST_YEARS, _mon_year)
 
     print(f"[5/5] Exportando JSON para {output_file}...")
 
