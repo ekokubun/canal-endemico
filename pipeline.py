@@ -181,7 +181,7 @@ def step1_compute_channels(csv_path, pop, channel_json='channel_data.json', skip
 # Step 2: Agregar dados por faixa etária
 # ══════════════════════════════════════════════════════════════════════
 
-def step2_age_group_data(csv_path, channel_data):
+def step2_age_group_data(csv_path, channel_data, incremental=False):
     print("\n" + "=" * 60)
     print("STEP 2: Agregando dados por faixa etária")
     print("=" * 60)
@@ -209,6 +209,12 @@ def step2_age_group_data(csv_path, channel_data):
         print("  → Detectado formato GAS agregado (ano_epi + semana_epi)")
         df['ano_epi'] = df[cols['ano_epi']]
         df['se_epi']  = df[cols['semana_epi']]
+        # Modo incremental: filtrar ao ano monitorado para reduzir volume
+        if incremental:
+            _mon = int(MONITOR_YEAR)
+            before = len(df)
+            df = df[df['ano_epi'] == _mon].copy()
+            print(f"  → Modo incremental: {len(df)} linhas de {_mon} (de {before} total)")
     elif has_data:
         col_date = cols['data']
         df[col_date] = pd.to_datetime(df[col_date], dayfirst=True, errors='coerce')
@@ -360,12 +366,106 @@ def step2_age_group_data(csv_path, channel_data):
 # Step 3: Computar canais por faixa etária
 # ══════════════════════════════════════════════════════════════════════
 
-def step3_age_channels(age_data):
+def step3_age_channels(age_data, incremental=False, age_state_path='age_state.json'):
     print("\n" + "=" * 60)
     print("STEP 3: Computando canais por faixa etária")
     print("=" * 60)
 
     rng = np.random.default_rng(RNG_SEED)
+
+    # ── Modo incremental: usa params congelados de age_state.json ─────
+    if incremental and os.path.exists(age_state_path):
+        print("  → Modo INCREMENTAL: carregando age_state.json (sem MLE/MC)...")
+        with open(age_state_path, encoding='utf-8') as f:
+            state = json.load(f)
+        results = {}
+        for agravo in age_data:
+            results[agravo] = {}
+            for age_group in age_data[agravo]:
+                grp = age_data[agravo][age_group]  # apenas dados de MONITOR_YEAR
+                st_ag = state.get('channels', {}).get(agravo, {}).get(age_group)
+                if st_ag is None:
+                    # Novo agravo/faixa — calcular normalmente (raro)
+                    print(f"  ⚡ Novo: {agravo} / {age_group} — calculando...")
+                    _compute_single = True
+                else:
+                    _compute_single = False
+
+                if _compute_single:
+                    raw = {yr: {} for yr in set(TRAINING_YEARS_DEFAULT + [MONITOR_YEAR])}
+                    for yr in raw:
+                        if yr in grp:
+                            for se_s, count in grp[yr].items():
+                                se = int(se_s)
+                                if 1 <= se <= MAX_SE:
+                                    raw[yr][se] = int(count)
+                    channels = {}
+                    classifications = {}
+                    for se in range(1, MAX_SE + 1):
+                        train = [int(grp.get(yr, {}).get(str(se), 0)) for yr in TRAINING_YEARS_DEFAULT]
+                        if sum(train) == 0:
+                            thresholds = [0, 0, 0, 1, 2]
+                        else:
+                            a0, b0 = estimate_params_mom_simple(train)
+                            try:
+                                a, b = estimate_params_mle_simple(train, a0, b0)
+                            except:
+                                a, b = a0, b0
+                            thresholds = mc_quantiles(a, b, n_samples=MC_SAMPLES, rng=rng)
+                        channels[se] = {'p10': thresholds[0], 'p25': thresholds[1],
+                                        'p50': thresholds[2], 'p75': thresholds[3], 'p90': thresholds[4]}
+                    for yr in raw:
+                        classifications[yr] = {}
+                        for se in range(1, MAX_SE + 1):
+                            val = raw.get(yr, {}).get(se, 0)
+                            if se in channels:
+                                th = [channels[se]['p10'], channels[se]['p25'], channels[se]['p50'],
+                                      channels[se]['p75'], channels[se]['p90']]
+                                classifications[yr][str(se)] = classify_zone(val, th)
+                else:
+                    # Reconstruir do state: thresholds congelados + novas obs de MONITOR_YEAR
+                    frozen_ch = st_ag['channels']  # str(se) → {p10..p90}
+                    raw_hist  = st_ag.get('raw_hist', {})  # anos históricos
+
+                    # Novas obs do MONITOR_YEAR
+                    new_obs = {}
+                    if MONITOR_YEAR in grp:
+                        for se_s, count in grp[MONITOR_YEAR].items():
+                            se = int(se_s)
+                            if 1 <= se <= MAX_SE:
+                                new_obs[se] = int(count)
+
+                    # Raw: histórico + monitor_year
+                    raw = {yr: {int(k): v for k, v in raw_hist.get(yr, {}).items()}
+                           for yr in raw_hist}
+                    raw[MONITOR_YEAR] = new_obs
+
+                    channels = frozen_ch  # reusar congelado
+
+                    # Classificações
+                    classifications = {}
+                    for yr in list(raw_hist.keys()) + [MONITOR_YEAR]:
+                        classifications[yr] = {}
+                        for se in range(1, MAX_SE + 1):
+                            val = raw.get(yr, {}).get(se, 0)
+                            se_s = str(se)
+                            if se_s in frozen_ch:
+                                t = frozen_ch[se_s]
+                                th = [t['p10'], t['p25'], t['p50'], t['p75'], t['p90']]
+                                classifications[yr][se_s] = classify_zone(val, th)
+
+                raw_str       = {yr: {str(k): v for k, v in raw[yr].items()} for yr in raw}
+                channels_str  = {str(k): v for k, v in channels.items()} if not isinstance(list(channels.keys())[0] if channels else 0, str) else channels
+                results[agravo][age_group] = {
+                    'channels':        channels_str,
+                    'raw':             raw_str,
+                    'classifications': classifications
+                }
+        n_total = sum(len(results[a]) for a in results)
+        print(f"  → {n_total} canais atualizados (params congelados, sem MLE/MC)")
+        return results
+    # ─────────────────────────────────────────────────────────────────
+
     results = {}
     total = sum(len(age_data[a]) for a in age_data)
     done = 0
@@ -423,7 +523,30 @@ def step3_age_channels(age_data):
                 print(f"  [{done}/{total}] {agravo} / {age_group}")
 
     print(f"  → {total} combinações computadas")
+
+    # Salvar age_state.json para runs incrementais futuros
+    _save_age_state(results, age_state_path)
+
     return results
+
+
+def _save_age_state(results, path):
+    """Salva thresholds + raw histórico dos canais etários para runs incrementais."""
+    state = {'generated': pd.Timestamp.now().isoformat(), 'channels': {}}
+    for agravo, age_groups in results.items():
+        state['channels'][agravo] = {}
+        for age_group, data in age_groups.items():
+            raw = data.get('raw', {})
+            # raw_hist: todos os anos exceto MONITOR_YEAR
+            raw_hist = {yr: data for yr, data in raw.items() if yr != MONITOR_YEAR}
+            state['channels'][agravo][age_group] = {
+                'channels': data['channels'],  # thresholds congelados
+                'raw_hist': raw_hist,
+            }
+    with open(path, 'w', encoding='utf-8') as f:
+        json.dump(state, f, ensure_ascii=False, separators=(',', ':'))
+    size_kb = os.path.getsize(path) / 1024
+    print(f"  → age_state.json salvo ({size_kb:.0f} KB)")
 
 # ══════════════════════════════════════════════════════════════════════
 # Step 4: Gerar boletim enriquecido
@@ -1261,8 +1384,12 @@ def main():
 
     channel_data = step1_compute_channels(args.input, args.pop,
                                            skip_recompute=args.no_recompute)
-    age_data     = step2_age_group_data(args.input, channel_data)
-    age_channels = step3_age_channels(age_data)
+    _incremental = args.no_recompute and os.path.exists('age_state.json')
+    if _incremental:
+        print("  → Modo incremental detectado para faixas etárias (age_state.json presente)")
+    age_data     = step2_age_group_data(args.input, channel_data,
+                                        incremental=_incremental)
+    age_channels = step3_age_channels(age_data, incremental=_incremental)
     boletim      = step4_boletim(channel_data)
     step5_generate_html(channel_data, age_data, age_channels, boletim,
                         args.template, args.output)
