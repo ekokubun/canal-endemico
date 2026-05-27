@@ -6290,10 +6290,10 @@ def run_pipeline(input_file, populations, output_file,
             elif state_code in _results_by_code:
                 result_name, agg_2026 = _results_by_code[state_code]
                 agg_2026 = agg_2026[~agg_2026['ano'].isin(EXCLUDED_YEARS)].copy()
-                # Sempre preservar o nome canônico do state — garante compatibilidade
-                # com o frontend (ex: "A90" não vira "A90 - DENGUE [DENGUE CLASSICO]").
-                # Enriquecimento de nomes só deve ocorrer em rebuild completo. [ekokubun]
-                output_name = state_name
+                # Preferir nome enriquecido quando state_name é código nu — o frontend
+                # busca chaves enriquecidas ("A09 - DIARREIA...", "A90 - DENGUE...").
+                # Revertido fix 2 (532e595) que quebrou todos os CIDs ao usar bare codes.
+                output_name = result_name if (state_name == state_code and result_name != state_code) else state_name
             else:
                 # Canal histórico sem dados em 2026 (c2026 = 0 para todas as SEs)
                 agg_2026 = pd.DataFrame({'ano': pd.Series(dtype=int),
