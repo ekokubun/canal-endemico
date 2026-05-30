@@ -17,6 +17,7 @@
 set -uo pipefail
 
 REPO_DIR="/home/epikinesis/canal-endemico"
+DASH_DIR="/home/epikinesis/canal-dashboard"   # estáticos servidos pelo nginx (fora do git)
 GDRIVE_ID="11sS3Ue4cUC-bGfBSVlDLdefbMNGv77Bf"
 NET="fms-rc_fms-net"
 PG_CONTAINER="fms_postgres"
@@ -45,12 +46,22 @@ git pull --quiet || echo "AVISO: git pull falhou — usando código/estado local
 PGUSER_V=$(docker exec "$PG_CONTAINER" printenv POSTGRES_USER); PGUSER_V=${PGUSER_V:-postgres}
 PGPW=$(docker exec "$PG_CONTAINER" printenv POSTGRES_PASSWORD)
 
-# 4. Carga incremental → Postgres
+# 4. Carga incremental → Postgres (gera channel_data.json fresco em $REPO_DIR)
 docker run --rm --network "$NET" -v "$REPO_DIR":/app -w /app \
   -e PYTHONUNBUFFERED=1 -e PGHOST="$PG_CONTAINER" -e PGDATABASE=fms_prod \
   -e PGUSER="$PGUSER_V" -e PGPASSWORD="$PGPW" \
   "$PYIMG" bash -c "pip install -q -r requirements-vps.txt && \
     python carga_postgres.py --recompute --input $CSV --pop 210000 --skip-channel-estimation" || {
     echo "ERRO: carga falhou"; exit 1; }
+
+# 5. Dashboard estático: pipeline --no-recompute lê o channel_data.json fresco e
+#    gera os 4 JSONs + index.html em $DASH_DIR (não toca no channel_state.json).
+mkdir -p "$DASH_DIR"
+docker run --rm -v "$REPO_DIR":/app -v "$DASH_DIR":/dashboard -w /app \
+  -e PYTHONUNBUFFERED=1 "$PYIMG" bash -c "pip install -q numpy pandas && \
+    python pipeline.py $CSV --pop 210000 --output /dashboard/index.html \
+      --template /app/index.html --no-recompute" || {
+    echo "AVISO: geração do dashboard falhou (Postgres já atualizado)"; }
+chmod -R a+rX "$DASH_DIR"   # nginx (usuário não-root) precisa ler os arquivos
 
 echo "================ fim $(date -Is) ================"
