@@ -235,6 +235,17 @@ def obter_from_json(json_dir):
 def gravar_postgres(schema, fonte, metas, prioridades, obs, canal, clf, meta_exec):
     import psycopg2
     from psycopg2.extras import execute_values
+    from psycopg2.extensions import register_adapter, adapt
+    import numpy as np
+
+    # psycopg2 não adapta tipos numpy (np.int64/np.float64) que vêm do recompute
+    # em memória → registra conversão p/ int/float nativos. Sem isso, np.float64
+    # vira o texto "np.float64(...)" no SQL → InvalidSchemaName: schema "np".
+    for _t in (np.int8, np.int16, np.int32, np.int64,
+               np.uint8, np.uint16, np.uint32, np.uint64):
+        register_adapter(_t, lambda v: adapt(int(v)))
+    for _t in (np.float16, np.float32, np.float64):
+        register_adapter(_t, lambda v: adapt(float(v)))
 
     conn = psycopg2.connect(
         host=os.environ.get('PGHOST', 'localhost'),
