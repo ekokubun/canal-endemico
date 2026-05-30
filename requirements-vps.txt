@@ -1,0 +1,9 @@
+# Dependências da carga Postgres na VPS (Fase 4 — método → fms_prod).
+# Apenas o necessário para compute_channels + step2/step3 + carga_postgres.
+numpy>=1.26
+pandas>=2.1
+psycopg2-binary>=2.9
+
+# Opcionais — só se a VPS também gerar o boletim DOCX (steps 5/6 do pipeline.py):
+# matplotlib>=3.8
+# python-docx>=1.1

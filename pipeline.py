@@ -26,15 +26,32 @@ import numpy as np
 import pandas as pd
 import io
 
-# Imports para boletim DOCX (step 6)
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
-from docx import Document as DocxDocument
-from docx.shared import Inches, Pt, RGBColor, Cm
-from docx.enum.text import WD_ALIGN_PARAGRAPH
-from docx.oxml.ns import qn
-from docx.oxml import OxmlElement
+# Imports para boletim DOCX (step 6) — opcionais.
+# Carregados de forma "lazy" para que `import pipeline` (usado pela carga
+# Postgres, que só precisa dos steps 2/3) não exija matplotlib + python-docx.
+# Os symbols ficam disponíveis como globais quando as libs estão instaladas;
+# caso contrário, _ensure_boletim_deps() levanta erro claro ao chamar o step 6.
+try:
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+    from docx import Document as DocxDocument
+    from docx.shared import Inches, Pt, RGBColor, Cm
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from docx.oxml.ns import qn
+    from docx.oxml import OxmlElement
+    _HAS_BOLETIM_DEPS = True
+except ImportError:
+    _HAS_BOLETIM_DEPS = False
+
+
+def _ensure_boletim_deps():
+    """Garante que matplotlib + python-docx estão disponíveis para o boletim."""
+    if not _HAS_BOLETIM_DEPS:
+        raise ImportError(
+            "O boletim DOCX (steps 5/6) requer 'matplotlib' e 'python-docx'. "
+            "Instale com: pip install matplotlib python-docx"
+        )
 
 # ══════════════════════════════════════════════════════════════════════
 # Config
@@ -813,6 +830,7 @@ def _set_cell_bg(cell, hex_color):
 
 
 def _gerar_grafico_canal(channel_data, agravos_plot, se_atual, monitor_year='2026'):
+    _ensure_boletim_deps()
     channels = channel_data.get('channels', {})
     CORES = {
         'Todos os atendimentos':          '#2E75B6',
@@ -930,6 +948,7 @@ def step6_boletim_docx(boletim_data, channel_data, se_num, output_html,
     print("STEP 6: Gerando boletim DOCX")
     print("=" * 60)
 
+    _ensure_boletim_deps()
     doc     = DocxDocument()
     now     = datetime.now()
     nome_arq = f'boletim_SE{se_num}.docx'
