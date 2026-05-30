@@ -212,6 +212,12 @@ def classify_zone(value, thresholds):
 
 def detectar_se_incompleta(df, col_se, col_ano, col_casos, col_data=None):
     """Detecta se a última SE do ano mais recente está incompleta."""
+    # Guarda: agravo sem dados utilizáveis (ex.: só SE > MAX_SE, já removidas, ou
+    # coluna de ano toda NaN) → nada a detectar. Antes estourava com
+    # ValueError: cannot convert float NaN to integer no int(.max()).
+    if df.empty or pd.isna(df[col_ano].max()) or pd.isna(df[col_se].max()):
+        return {'ultima_se': 0, 'ano': 0, 'completa': True,
+                'dias': 0, 'ratio': 0.0, 'decisao': 'INCLUIR'}
     ultimo_ano = int(df[col_ano].max())
     df_ua = df[df[col_ano] == ultimo_ano]
     ultima_se = int(df_ua[col_se].max())
