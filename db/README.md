@@ -68,21 +68,36 @@ A recalibração completa dos canais é anual (janeiro) — rodar sem
 python3 carga_postgres.py --from-json --dry-run   # contagens + amostra, não conecta
 ```
 
-## Cron sugerido (VPS)
+## Cron na VPS (Docker)
 
-```cron
-# Carga incremental diária às 06:30 BRT (após o consolidar do dia)
-30 6 * * *  cd /opt/canal-endemico && git pull -q && \
-            PGPASSWORD="$(cat /etc/epikinesis/pg.pass)" \
-            python3 carga_postgres.py --recompute --input canal_endemico_input.csv \
-            --pop 210000 --skip-channel-estimation >> /var/log/canal_carga.log 2>&1
+Na VPS o Postgres roda no container `fms_postgres` (rede `fms-rc_fms-net`, 5432
+**não** publicado no host) e o host **não tem psql/pip**. A carga roda num
+container Python efêmero na rede da stack — encapsulado em `cron_carga.sh`
+(baixa CSV do Drive → `git pull` → carga incremental → Postgres).
 
-# Recalibração completa em 1º de janeiro às 04:00
-0 4 1 1 *   cd /opt/canal-endemico && \
-            PGPASSWORD="$(cat /etc/epikinesis/pg.pass)" \
-            python3 carga_postgres.py --recompute --input canal_endemico_input.csv \
-            --pop 210000 --base-hist-years 2024,2025,2026 >> /var/log/canal_carga.log 2>&1
+> ⚠️ **Sempre incremental (`--skip-channel-estimation`).** O `canal_endemico_input.csv`
+> do Drive é parcial (ano corrente + anterior); a história profunda vive no
+> `channel_state.json` commitado. Um recompute **completo** na VPS sobrescreveria
+> o estado e perderia a história. A recalibração completa (janeiro) só com um CSV
+> de história cheia — feita fora da VPS e trazida via `git pull`.
+
+**Pré-requisitos (uma vez):**
+```bash
+sudo usermod -aG docker epikinesis          # docker sem sudo — RELOGAR depois
+git config --global credential.helper store && git pull   # salva o PAT (1x)
+git update-index --skip-worktree channel_data.json        # carga regrava esse arquivo (root); git ignora
+chmod +x cron_carga.sh
 ```
+
+**Crontab (rode `crontab -e` como epikinesis):**
+```cron
+# Carga incremental diária — AJUSTE A HORA ao fuso da VPS (veja `date`/`timedatectl`).
+# Ex.: VPS em UTC e alvo 06:30 BRT (UTC-3) → 30 9 * * *
+30 9 * * *  /home/epikinesis/canal-endemico/cron_carga.sh >> /home/epikinesis/canal_carga.log 2>&1
+```
+
+Teste manual antes de agendar: `./cron_carga.sh` (deve terminar com
+`✓ Postgres atualizado`). Logs em `~/canal_carga.log`.
 
 ## Metabase
 1. Admin → Databases → adicionar/usar `fms_prod`.
