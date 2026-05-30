@@ -62,6 +62,9 @@ docker run --rm -v "$REPO_DIR":/app -v "$DASH_DIR":/dashboard -w /app \
     python pipeline.py $CSV --pop 210000 --output /dashboard/index.html \
       --template /app/index.html --no-recompute" || {
     echo "AVISO: geração do dashboard falhou (Postgres já atualizado)"; }
+
+# 5b. Acervo de boletins (PDFs + manifest.json) — vem do repo (git pull), servido em /canal/boletins/
+cp -r "$REPO_DIR/boletins" "$DASH_DIR/" 2>/dev/null || echo "AVISO: cópia dos boletins falhou"
 chmod -R a+rX "$DASH_DIR"   # nginx (usuário não-root) precisa ler os arquivos
 
 echo "================ fim $(date -Is) ================"
