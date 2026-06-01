@@ -92,10 +92,16 @@ chmod +x cron_carga.sh
 
 **Crontab (rode `crontab -e` como epikinesis):**
 ```cron
-# Carga incremental diária — AJUSTE A HORA ao fuso da VPS (veja `date`/`timedatectl`).
-# Ex.: VPS em UTC e alvo 06:30 BRT (UTC-3) → 30 9 * * *
-30 9 * * *  /home/epikinesis/canal-endemico/cron_carga.sh >> /home/epikinesis/canal_carga.log 2>&1
+# Fuso TRAVADO em BRT via CRON_TZ — não dependa do relógio do sistema da VPS
+# (ela roda em Europe/Berlin, que tem DST: CEST no verão, CET no inverno; sem
+# CRON_TZ o horário UTC efetivo desliza 1h e pode rodar ANTES do GitHub terminar).
+# 06:30 BRT = 09:30 UTC; o GitHub Actions dispara 06:00 UTC (03:00 BRT) → 3,5h de margem.
+CRON_TZ=America/Sao_Paulo
+30 6 * * *  /home/epikinesis/canal-endemico/cron_carga.sh >> /home/epikinesis/canal_carga.log 2>&1
 ```
+> O cron do Ubuntu (`cron 3.0pl1`, Vixie) honra `CRON_TZ`. Se algum dia trocar para
+> uma VPS com `cron` que NÃO suporte `CRON_TZ`, calcule a hora em UTC à mão
+> (06:30 BRT = `30 9 * * *` em UTC) e confira com `timedatectl`.
 
 Teste manual antes de agendar: `./cron_carga.sh` (deve terminar com
 `✓ Postgres atualizado`). Logs em `~/canal_carga.log`.
