@@ -84,9 +84,10 @@ container Python efêmero na rede da stack — encapsulado em `cron_carga.sh`
 **Pré-requisitos (uma vez):**
 ```bash
 sudo usermod -aG docker epikinesis          # docker sem sudo — RELOGAR depois
-git config --global credential.helper store && git pull   # salva o PAT (1x)
-git update-index --skip-worktree channel_data.json        # carga regrava esse arquivo (root); git ignora
+git config --global credential.helper store && git fetch  # salva o PAT (1x)
 chmod +x cron_carga.sh
+# Obs.: o cron usa `git fetch` + `git checkout origin/main -- <arquivos>` (não `git pull`),
+# para não conflitar com o channel_data.json que a carga regenera (root-owned).
 ```
 
 **Crontab (rode `crontab -e` como epikinesis):**

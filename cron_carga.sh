@@ -11,8 +11,7 @@
 #
 # Pré-requisitos (uma vez — ver db/README.md):
 #   - epikinesis no grupo docker          (docker sem sudo)
-#   - git config credential.helper store  (PAT salvo p/ git pull)
-#   - git update-index --skip-worktree channel_data.json
+#   - git config credential.helper store  (PAT salvo p/ git fetch)
 # ============================================================================
 set -uo pipefail
 
@@ -38,9 +37,13 @@ if [ "$SZ" -lt 500000 ]; then
   echo "ERRO: $CSV suspeito ($SZ bytes) — abortando"; exit 1
 fi
 
-# 2. Código + estado congelado atualizados (channel_data.json é skip-worktree).
-#    Falha de pull não aborta a carga — segue com o que há local.
-git pull --quiet || echo "AVISO: git pull falhou — usando código/estado local"
+# 2. Atualizar código + estado do GitHub SEM merge completo. Faz checkout só dos
+#    arquivos versionados (exceto channel_data.json, que a carga regenera e fica
+#    root-owned) — evita o conflito que travava o `git pull` e dispensa stash/sudo.
+git fetch origin -q || echo "AVISO: git fetch falhou — usando local"
+git checkout origin/main -- '*.py' db/ boletins/ index.html requirements-vps.txt \
+  cron_carga.sh channel_state.json age_state.json age_channels.json \
+  age_group_data.json boletim_data.json 2>/dev/null || echo "AVISO: checkout parcial falhou"
 
 # 3. Credenciais do Postgres (da env do próprio container)
 PGUSER_V=$(docker exec "$PG_CONTAINER" printenv POSTGRES_USER); PGUSER_V=${PGUSER_V:-postgres}
@@ -63,8 +66,10 @@ docker run --rm -v "$REPO_DIR":/app -v "$DASH_DIR":/dashboard -w /app \
       --template /app/index.html --no-recompute" || {
     echo "AVISO: geração do dashboard falhou (Postgres já atualizado)"; }
 
-# 5b. Acervo de boletins (PDFs + manifest.json) — vem do repo (git pull), servido em /canal/boletins/
+# 5b. Acervo de boletins (PDFs + manifest) — servido em /canal/boletins/.
+#     rm antes do cp p/ refletir remoções/renomeações e não aninhar (boletins/boletins).
+rm -rf "$DASH_DIR/boletins"
 cp -r "$REPO_DIR/boletins" "$DASH_DIR/" 2>/dev/null || echo "AVISO: cópia dos boletins falhou"
-chmod -R a+rX "$DASH_DIR"   # nginx (usuário não-root) precisa ler os arquivos
+chmod -R a+rX "$DASH_DIR" 2>/dev/null   # nginx (usuário não-root) precisa ler os arquivos
 
 echo "================ fim $(date -Is) ================"
