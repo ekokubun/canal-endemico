@@ -1,11 +1,9 @@
 name: Boletim Epidemiológico Semanal
 
 on:
-  # Toda segunda-feira às 8h Brasília (11h UTC)
-  schedule:
-    - cron: '0 11 * * 1'
-
-  # Execução manual pelo GitHub
+  # O DOCX semanal agora é gerado NA VPS (cron_carga.sh, passo 5d, às segundas).
+  # O schedule foi REMOVIDO para não correr em paralelo com a VPS e gerar commits
+  # concorrentes em main. Mantido só como fallback manual de emergência.
   workflow_dispatch:
 
 permissions:

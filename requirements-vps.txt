@@ -7,6 +7,8 @@ psycopg2-binary>=2.9
 # Download do CSV do Drive (usado pelo cron_carga.sh).
 gdown>=5
 
-# Opcionais — só se a VPS também gerar o boletim DOCX (steps 5/6 do pipeline.py):
-# matplotlib>=3.8
-# python-docx>=1.1
+# Boletim DOCX semanal (steps 5/6 do pipeline.py) — gerado na VPS às segundas (passo 5d
+# do cron_carga.sh). Após adicionar/mudar estas linhas: rebuild manual da imagem
+# (docker build -t canal-carga:latest .) — o cron só rebuilda se a imagem estiver AUSENTE.
+matplotlib>=3.8
+python-docx>=1.1

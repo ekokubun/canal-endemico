@@ -110,7 +110,10 @@ def secao(titulo, cor, items):
 
 def gerar_html(items, se, ano):
     inicio, fim = se_para_datas(se, ano)
-    hoje = date.today()
+    # Referência = data de FIM da SE (determinística), não date.today(): evita que o
+    # PDF mude todo dia só pela data de geração (churn de commits no git). O boletim
+    # reporta uma SE completa, então a data de encerramento é a referência correta.
+    ref = fim
     emerg = [i for i in items if i["status"]=="emergencia"]
     epid  = [i for i in items if i["status"]=="epidemico"]
     alert = [i for i in items if i["status"]=="alerta"]
@@ -142,7 +145,7 @@ h2{{font-size:12px;font-weight:700;color:#374151;margin:14px 0 5px;padding-botto
   <div><div style="font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:1px;margin-bottom:3px">Sala de Situacao / CIEVS - Vigilancia Epidemiologica - FMS Rio Claro/SP</div>
   <h1>Boletim Sindromico de Atendimentos nas UPAs</h1>
   <div style="font-size:12px;color:#6b7280;margin-top:4px">SE {se:02d}/{ano} - {inicio.strftime('%d/%m/%Y')} a {fim.strftime('%d/%m/%Y')} - Hipoteses diagnosticas nas UPAs da FMS</div></div>
-  <div style="text-align:right;font-size:10px;color:#9ca3af">N {se:02d}/{ano}<br>Gerado: {hoje.strftime('%d/%m/%Y')}<br><span style="font-size:9px">ekokubun.github.io/canal-endemico</span></div>
+  <div style="text-align:right;font-size:10px;color:#9ca3af">N {se:02d}/{ano}<br>Encerramento: {ref.strftime('%d/%m/%Y')}<br><span style="font-size:9px">ekokubun.github.io/canal-endemico</span></div>
 </div></div>
 <h2>Quadro de Situacao - SE {se:02d}/{ano}</h2>
 <div class="sem">
@@ -155,15 +158,19 @@ h2{{font-size:12px;font-weight:700;color:#374151;margin:14px 0 5px;padding-botto
 {secao("ALERTA - Atencao aumentada","#d97706",alert)}
 {secao("CONTROLADO - Monitoramento de rotina","#16a34a",ok)}
 <div class="nota"><b>Fonte e metodo:</b> Atendimentos por hipotese diagnostica nas UPAs da FMS de Rio Claro/SP (Sistema Maestro/IDS Saude), que estimam indiretamente o numero de casos ocorridos na populacao. As ocorrencias semanais sao classificadas segundo a probabilidade esperada de ocorrencia para cada semana epidemiologica, com base no padrao historico de atendimentos 2023-2025. Status = pior zona das ultimas 2 SEs completas. Var% = atendimentos 2026 acumulados vs frequencia esperada historica nas mesmas SEs de 2025.<br><b>Ult. 4 SEs:</b> uma bolinha por semana, cor = zona &#8212; <span style="color:#16a34a">&#9679;</span>&nbsp;Sucesso&nbsp;&nbsp;<span style="color:#2563eb">&#9679;</span>&nbsp;Seguranca&nbsp;&nbsp;<span style="color:#d97706">&#9679;</span>&nbsp;Alerta&nbsp;&nbsp;<span style="color:#ea580c">&#9679;</span>&nbsp;Epidemico&nbsp;&nbsp;<span style="color:#dc2626">&#9679;</span>&nbsp;Emergencia.</div>
-<div class="ftr"><span>Sala de Situacao/CIEVS - FMS Rio Claro/SP - Vigilancia Epidemiologica</span><span>{fmt_longa(hoje)}</span></div>
+<div class="ftr"><span>Sala de Situacao/CIEVS - FMS Rio Claro/SP - Vigilancia Epidemiologica</span><span>{fmt_longa(ref)}</span></div>
 </div></body></html>"""
 
 def atualizar_manifest(boletins_dir, se, ano, nome_pdf):
     mpath = boletins_dir / "manifest.json"
     manifest = json.loads(mpath.read_text()) if mpath.exists() else []
     inicio, fim = se_para_datas(se, ano)
+    # Preserva o gerado_em de uma entrada já existente (1ª publicação da SE), em vez de
+    # reescrever com date.today() a cada run — senão o manifest muda todo dia (churn).
+    prev = next((m for m in manifest if m["se"]==se and m["ano"]==ano), None)
+    gerado_em = prev.get("gerado_em") if prev else date.today().isoformat()
     manifest = [m for m in manifest if not (m["se"]==se and m["ano"]==ano)]
-    manifest.append({"se":se,"ano":ano,"data_inicio":inicio.isoformat(),"data_fim":fim.isoformat(),"arquivo":nome_pdf,"gerado_em":date.today().isoformat()})
+    manifest.append({"se":se,"ano":ano,"data_inicio":inicio.isoformat(),"data_fim":fim.isoformat(),"arquivo":nome_pdf,"gerado_em":gerado_em})
     manifest.sort(key=lambda x:(x["ano"],x["se"]),reverse=True)
     mpath.write_text(json.dumps(manifest,indent=2,ensure_ascii=False))
     print(f"  manifest.json: {len(manifest)} boletins")

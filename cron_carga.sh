@@ -58,7 +58,7 @@ fi
 git fetch origin -q || echo "AVISO: git fetch falhou — usando local"
 git checkout origin/main -- '*.py' Dockerfile db/ boletins/ index.html requirements-vps.txt \
   cron_carga.sh channel_state.json age_state.json age_channels.json \
-  age_group_data.json boletim_data.json 2>/dev/null || echo "AVISO: checkout parcial falhou"
+  age_group_data.json boletim_data.json 'boletim_SE*.docx' 2>/dev/null || echo "AVISO: checkout parcial falhou"
 
 # 3. Credenciais do Postgres (da env do próprio container)
 PGUSER_V=$(docker exec "$PG_CONTAINER" printenv POSTGRES_USER); PGUSER_V=${PGUSER_V:-postgres}
@@ -90,8 +90,36 @@ docker run --rm --user "$UG" -e HOME=/tmp -v "$REPO_DIR":/app -w /app "$IMG" bas
     --user-data-dir=/tmp/chrome --no-pdf-header-footer \
     --print-to-pdf="$PDF" "file://$(realpath "$HTML")" 2>/dev/null
   rm -f "$HTML"
+  # Zera metadados voláteis (CreationDate/ModDate/ID) → PDF determinístico entre runs
+  # → o guard git diff só publica quando o conteúdo da SE muda (não todo dia).
+  [ -f "$PDF" ] && python normaliza_pdf.py "$PDF" 2>/dev/null
   [ -f "$PDF" ] && echo "boletim PDF: $PDF" || echo "AVISO: PDF não gerado"
 ' || echo "AVISO: geração do boletim falhou"
+
+# 5d. Boletim DOCX semanal — gerado NA VPS só às SEGUNDAS (antes era o GitHub Actions
+#     boletim-semanal.yml). Usa o channel_data.json fresco do passo 4. Sai como
+#     boletim_SE{n}.docx na raiz do repo. matplotlib+python-docx vêm na imagem.
+GEN_DOCX=0
+if [ "$(TZ=America/Sao_Paulo date +%u)" = "1" ]; then GEN_DOCX=1; fi
+if [ "$GEN_DOCX" = "1" ]; then
+  echo "segunda-feira — gerando boletim DOCX semanal"
+  # SE anterior completa (último sábado; SE1=29/12/2025), calculada no container.
+  SE_INFO=$(docker run --rm --user "$UG" -e HOME=/tmp -e TZ=America/Sao_Paulo "$IMG" \
+    python3 -c 'import datetime;t=datetime.date.today();sa=t-datetime.timedelta(days=2);su=sa-datetime.timedelta(days=6);s1=datetime.date(2025,12,29);n=(su-s1).days//7+1;y=su.year if su>=s1 else su.year-1;m=["","janeiro","fevereiro","março","abril","maio","junho","julho","agosto","setembro","outubro","novembro","dezembro"];print(f"{n}|{y}|SE {n}/{y} — {su.day} de {m[su.month]} a {sa.day} de {m[sa.month]} de {sa.year}")' 2>/dev/null)
+  IFS='|' read -r SE_NUM SE_YEAR SE_LABEL <<EOF
+$SE_INFO
+EOF
+  if [ -n "$SE_NUM" ]; then
+    echo "Boletim: $SE_LABEL"
+    docker run --rm --user "$UG" -e HOME=/tmp -e MPLCONFIGDIR=/tmp/mpl -e TZ=America/Sao_Paulo \
+      -v "$REPO_DIR":/app -w /app "$IMG" \
+      python pipeline.py --from-json channel_data.json --output index.html \
+        --se-num "$SE_NUM" --se-year "$SE_YEAR" --se-label "$SE_LABEL" \
+      && echo "boletim DOCX: boletim_SE${SE_NUM}.docx" || echo "AVISO: geração do DOCX falhou"
+  else
+    echo "AVISO: cálculo da SE para o DOCX falhou — pulando"
+  fi
+fi
 
 # 5b. Publicar o boletim de volta no GitHub (mantém o GitHub Pages alimentado),
 #     via clone EFÊMERO — não toca no worktree principal (que fica de propósito
@@ -101,14 +129,16 @@ TMP="$(mktemp -d)"
 if git clone --depth 1 -q "$PUSH_URL" "$TMP" 2>/dev/null; then
   cp "$REPO_DIR"/boletins/*.pdf "$TMP/boletins/" 2>/dev/null
   cp "$REPO_DIR/boletins/manifest.json" "$TMP/boletins/" 2>/dev/null
-  git -C "$TMP" add boletins/ 2>/dev/null
+  # DOCX semanal (passo 5d, só às segundas) — vai no MESMO commit/push do PDF.
+  [ "$GEN_DOCX" = "1" ] && cp "$REPO_DIR"/boletim_SE*.docx "$TMP/" 2>/dev/null
+  git -C "$TMP" add boletins/ boletim_SE*.docx 2>/dev/null
   if ! git -C "$TMP" diff --cached --quiet 2>/dev/null; then
     git -C "$TMP" -c user.name=vps-canal -c user.email=vps@epikinesis \
-      commit -q -m "Boletim PDF gerado na VPS [$(date +%d/%m/%Y)]" \
+      commit -q -m "Boletins gerados na VPS [$(date +%d/%m/%Y)]" \
       && git -C "$TMP" push -q origin HEAD:main \
-      && echo "boletim publicado no GitHub" || echo "AVISO: push do boletim falhou"
+      && echo "boletins publicados no GitHub" || echo "AVISO: push do boletim falhou"
   else
-    echo "boletim sem mudanças — nada a publicar"
+    echo "boletins sem mudanças — nada a publicar"
   fi
 else
   echo "AVISO: clone efêmero p/ push do boletim falhou"
