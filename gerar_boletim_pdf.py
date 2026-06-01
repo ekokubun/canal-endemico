@@ -68,7 +68,7 @@ def enriquecer(boletim_data, channels, se_n):
                 p50 = sum(row[2] for row in chs25[:seN] if len(row) > 2)
         status  = pior_zona(zonas[-2:]) if zonas else "sucesso"
         var_pct = ((obs - p50) / p50 * 100) if p50 and p50 > 0 else None
-        spark   = "".join(ZONA_EMOJI.get(z,"?") for z in zonas[-4:])
+        spark   = "".join(f'<span style="color:{ZONA_COR.get(z,"#cbd5e1")}">&#9679;</span>' for z in zonas[-4:]) or '<span style="color:#cbd5e1">&#8212;</span>'
         result.append({**item,"status":status,"obs_ytd":obs,"p50_ytd":p50,
                        "var_pct":var_pct,"sparkline":spark,"seN":seN,
                        "nome_limpo":limpa_nome(item["name"])})
@@ -86,7 +86,7 @@ def row_html(item):
   <td style="padding:7px 9px"><span style="background:{cor}22;color:{cor};padding:3px 9px;border-radius:5px;font-size:11px;font-weight:700;border:1px solid {cor}44">{ZONA_NOME[item['status']]}</span></td>
   <td style="padding:7px 9px;text-align:right;font-family:monospace;font-size:12px">{obs_fmt}</td>
   <td style="padding:7px 9px;text-align:right;font-size:12px">{var_str}</td>
-  <td style="padding:7px 9px;text-align:center;font-size:13px;letter-spacing:2px">{item['sparkline']}</td>
+  <td style="padding:7px 9px;text-align:center;font-size:15px;letter-spacing:4px;white-space:nowrap">{item['sparkline']}</td>
   <td style="padding:7px 9px;font-size:11px;color:#6b7280">{item.get('acao','Monitoramento de rotina.')}</td>
 </tr>"""
 
@@ -154,7 +154,7 @@ h2{{font-size:12px;font-weight:700;color:#374151;margin:14px 0 5px;padding-botto
 {secao("EPIDEMICO - Mobilizacao reforcada","#ea580c",epid)}
 {secao("ALERTA - Atencao aumentada","#d97706",alert)}
 {secao("CONTROLADO - Monitoramento de rotina","#16a34a",ok)}
-<div class="nota"><b>Fonte e metodo:</b> Atendimentos por hipotese diagnostica nas UPAs da FMS de Rio Claro/SP (Sistema Maestro/IDS Saude), que estimam indiretamente o numero de casos ocorridos na populacao. As ocorrencias semanais sao classificadas segundo a probabilidade esperada de ocorrencia para cada semana epidemiologica, com base no padrao historico de atendimentos 2023-2025. Status = pior zona das ultimas 2 SEs completas. Var% = atendimentos 2026 acumulados vs frequencia esperada historica nas mesmas SEs de 2025.</div>
+<div class="nota"><b>Fonte e metodo:</b> Atendimentos por hipotese diagnostica nas UPAs da FMS de Rio Claro/SP (Sistema Maestro/IDS Saude), que estimam indiretamente o numero de casos ocorridos na populacao. As ocorrencias semanais sao classificadas segundo a probabilidade esperada de ocorrencia para cada semana epidemiologica, com base no padrao historico de atendimentos 2023-2025. Status = pior zona das ultimas 2 SEs completas. Var% = atendimentos 2026 acumulados vs frequencia esperada historica nas mesmas SEs de 2025.<br><b>Ult. 4 SEs:</b> uma bolinha por semana, cor = zona &#8212; <span style="color:#16a34a">&#9679;</span>&nbsp;Sucesso&nbsp;&nbsp;<span style="color:#2563eb">&#9679;</span>&nbsp;Seguranca&nbsp;&nbsp;<span style="color:#d97706">&#9679;</span>&nbsp;Alerta&nbsp;&nbsp;<span style="color:#ea580c">&#9679;</span>&nbsp;Epidemico&nbsp;&nbsp;<span style="color:#dc2626">&#9679;</span>&nbsp;Emergencia.</div>
 <div class="ftr"><span>Sala de Situacao/CIEVS - FMS Rio Claro/SP - Vigilancia Epidemiologica</span><span>{fmt_longa(hoje)}</span></div>
 </div></body></html>"""
 
