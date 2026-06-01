@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+
+# CSV de entrada baixado em runtime (Drive) — não versionar
+canal_endemico_input.csv
+dados_ids.csv

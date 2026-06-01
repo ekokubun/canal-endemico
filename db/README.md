@@ -71,23 +71,34 @@ python3 carga_postgres.py --from-json --dry-run   # contagens + amostra, não co
 ## Cron na VPS (Docker)
 
 Na VPS o Postgres roda no container `fms_postgres` (rede `fms-rc_fms-net`, 5432
-**não** publicado no host) e o host **não tem psql/pip**. A carga roda num
-container Python efêmero na rede da stack — encapsulado em `cron_carga.sh`
-(baixa CSV do Drive → `git pull` → carga incremental → Postgres).
+**não** publicado no host) e o host **não tem psql/pip**. A carga roda numa
+imagem própria (`canal-carga:latest`, ver `Dockerfile`) com as deps + Chromium
+pré-instalados — encapsulado em `cron_carga.sh` (baixa CSV do Drive → checkout do
+código/estado → carga incremental → dashboard → **boletim PDF + push** → cópia p/ nginx).
+
+Os containers rodam com **`--user $(id -u):$(id -g)`**: nada de `pip install` a cada
+run e os arquivos gerados ficam `epikinesis`-owned (não root). O **boletim PDF é
+gerado na própria VPS** (o Chromium da imagem converte o HTML do `gerar_boletim_pdf.py`)
+e publicado de volta no GitHub via **clone efêmero** — o GitHub Actions não gera mais
+boletim (ver `.github/workflows/update-dashboard.yml`).
 
 > ⚠️ **Sempre incremental (`--skip-channel-estimation`).** O `canal_endemico_input.csv`
 > do Drive é parcial (ano corrente + anterior); a história profunda vive no
 > `channel_state.json` commitado. Um recompute **completo** na VPS sobrescreveria
 > o estado e perderia a história. A recalibração completa (janeiro) só com um CSV
-> de história cheia — feita fora da VPS e trazida via `git pull`.
+> de história cheia — feita fora da VPS e trazida via git.
 
 **Pré-requisitos (uma vez):**
 ```bash
 sudo usermod -aG docker epikinesis          # docker sem sudo — RELOGAR depois
-git config --global credential.helper store && git fetch  # salva o PAT (1x)
+git config --global credential.helper store && git fetch  # salva o PAT (1x; usado tb p/ push)
 chmod +x cron_carga.sh
-# Obs.: o cron usa `git fetch` + `git checkout origin/main -- <arquivos>` (não `git pull`),
-# para não conflitar com o channel_data.json que a carga regenera (root-owned).
+docker build -t canal-carga:latest .         # imagem com deps + Chromium (~2-3 min)
+# Obs.1: o cron usa `git fetch` + `git checkout origin/main -- <arquivos>` (não `git pull`),
+#   para não conflitar com o channel_data.json que a carga regenera. O conflito é de
+#   CONTEÚDO (VPS regenera vs CI commita) e persiste mesmo com a imagem --user.
+# Obs.2: o cron tem self-heal — se a imagem sumir, ele a reconstrói. Mas após mudar
+#   requirements-vps.txt ou o Dockerfile, rode `docker build -t canal-carga:latest .` à mão.
 ```
 
 **Crontab (rode `crontab -e` como epikinesis):**

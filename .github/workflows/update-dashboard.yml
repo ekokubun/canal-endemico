@@ -112,37 +112,13 @@ jobs:
         run: |
           python3 pipeline.py dados_ids.csv --no-recompute --output index.html
 
-      - name: Gerar Boletim Sindromico HTML
-        run: |
-          python3 gerar_boletim_pdf.py \
-            --channel-data channel_data.json \
-            --boletim-data boletim_data.json \
-            --output-dir boletins/
-
-      - name: Converter HTML para PDF
-        run: |
-          HTML=$(ls boletins/*.html 2>/dev/null | head -1)
-          if [ -z "$HTML" ]; then echo "Sem HTML, pulando PDF"; exit 0; fi
-          PDF="${HTML%.html}.pdf"
-          ABS="$(realpath $HTML)"
-          BROWSER=$(which google-chrome 2>/dev/null || which chromium-browser 2>/dev/null || which chromium 2>/dev/null || echo "")
-          if [ -z "$BROWSER" ]; then
-            sudo apt-get update -qq && sudo apt-get install -y -qq chromium-browser
-            BROWSER=$(which chromium-browser)
-          fi
-          $BROWSER --headless=new --no-sandbox --disable-gpu --disable-dev-shm-usage \
-            --print-to-pdf="$PDF" --no-pdf-header-footer "file://$ABS" 2>/dev/null
-          if [ -f "$PDF" ]; then
-            echo "PDF: $(du -h $PDF | cut -f1) — $PDF"
-            rm "$HTML"
-          else
-            echo "AVISO: PDF nao gerado"
-          fi
+      # Boletim PDF: NÃO é mais gerado aqui — a VPS o gera (Chromium) e dá push de
+      # volta via cron_carga.sh (Fase 4, opção 1). Por isso boletins/ saiu do git add.
       - name: Commit e push
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add channel_data.json channel_state.json age_group_data.json age_channels.json age_state.json boletim_data.json index.html boletins/
+          git add channel_data.json channel_state.json age_group_data.json age_channels.json age_state.json boletim_data.json index.html
           git diff --cached --quiet && echo "Sem alterações" && exit 0
           SE=$(python3 -c "
           import json, datetime

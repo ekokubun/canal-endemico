@@ -4,6 +4,9 @@ numpy>=1.26
 pandas>=2.1
 psycopg2-binary>=2.9
 
+# Download do CSV do Drive (usado pelo cron_carga.sh).
+gdown>=5
+
 # Opcionais — só se a VPS também gerar o boletim DOCX (steps 5/6 do pipeline.py):
 # matplotlib>=3.8
 # python-docx>=1.1
