@@ -12,3 +12,6 @@ gdown>=5
 # (docker build -t canal-carga:latest .) — o cron só rebuilda se a imagem estiver AUSENTE.
 matplotlib>=3.8
 python-docx>=1.1
+
+# Análise narrativa por IA do boletim (gerar_analise_ia.py) — Claude API, 1×/semana.
+anthropic>=0.40

@@ -56,7 +56,7 @@ fi
 #    --user resolver o root-owned: o conflito é de CONTEÚDO do channel_data.json
 #    — VPS regenera vs CI commita — e persiste independente de ownership.)
 git fetch origin -q || echo "AVISO: git fetch falhou — usando local"
-git checkout origin/main -- '*.py' Dockerfile db/ boletins/ index.html requirements-vps.txt \
+git checkout origin/main -- '*.py' Dockerfile db/ boletins/ analises_ia/ index.html requirements-vps.txt \
   cron_carga.sh channel_state.json age_state.json age_channels.json \
   age_group_data.json boletim_data.json 'boletim_SE*.docx' 2>/dev/null || echo "AVISO: checkout parcial falhou"
 
@@ -119,6 +119,23 @@ EOF
   else
     echo "AVISO: cálculo da SE para o DOCX falhou — pulando"
   fi
+fi
+
+# 5e. Análise por IA (Claude) — RASCUNHO PRIVADO, só às segundas e só se a chave existir.
+#     Escreve em diretório privado da VPS (NÃO é commitado/empurrado). Revisão humana;
+#     publicar = promover o texto aprovado p/ analises_ia/SE{n}_{ano}.md no repo (à mão).
+#     Chave via --env-file (não aparece em docker inspect). Fallback: nunca derruba o cron.
+SECRET="/home/epikinesis/.secrets/anthropic.env"
+DRAFTS="/home/epikinesis/analises_ia_rascunhos"
+if [ "$GEN_DOCX" = "1" ] && [ -f "$SECRET" ]; then
+  echo "segunda-feira — gerando rascunho de análise por IA"
+  mkdir -p "$DRAFTS"
+  docker run --rm --user "$UG" -e HOME=/tmp --env-file "$SECRET" \
+    -v "$REPO_DIR":/app -v "$DRAFTS":/drafts -w /app "$IMG" \
+    python gerar_analise_ia.py --output "/drafts/analise_$(date +%Y%m%d).md" \
+    || echo "AVISO: análise IA falhou (boletim segue sem ela)"
+elif [ "$GEN_DOCX" = "1" ]; then
+  echo "análise IA pulada (sem $SECRET)"
 fi
 
 # 5b. Publicar o boletim de volta no GitHub (mantém o GitHub Pages alimentado),

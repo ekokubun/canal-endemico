@@ -4,3 +4,7 @@ __pycache__/
 # CSV de entrada baixado em runtime (Drive) — não versionar
 canal_endemico_input.csv
 dados_ids.csv
+
+# Segredos — chaves de API nunca no git (a chave fica em ~/.secrets/ na VPS)
+*.env
+.secrets/

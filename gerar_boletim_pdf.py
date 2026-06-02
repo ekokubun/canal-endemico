@@ -108,7 +108,29 @@ def secao(titulo, cor, items):
     {titulo} <span style="font-size:11px;opacity:0.7">({len(items)} agravo{'s' if len(items)>1 else ''})</span></div>
   {TBL_HEAD}{rows}</tbody></table></div>"""
 
-def gerar_html(items, se, ano):
+def _analise_para_html(txt):
+    """Converte o texto da análise aprovada (texto corrido / parágrafos) em HTML seguro.
+    Ignora linhas de cabeçalho markdown (#) e comentários HTML do rascunho."""
+    linhas = [l for l in txt.splitlines()
+              if not l.lstrip().startswith("#") and "<!--" not in l and "-->" not in l]
+    blocos, atual = [], []
+    for l in linhas:
+        if l.strip():
+            atual.append(l.strip())
+        elif atual:
+            blocos.append(" ".join(atual)); atual = []
+    if atual:
+        blocos.append(" ".join(atual))
+    def esc(s):
+        return s.replace("&","&amp;").replace("<","&lt;").replace(">","&gt;")
+    paras = "".join(f'<p style="margin:0 0 7px;font-size:12px;line-height:1.6">{esc(b)}</p>' for b in blocos)
+    return f"""<div style="margin-bottom:18px;page-break-inside:avoid">
+  <div style="font-size:13px;font-weight:700;color:#1e3a5f;padding:6px 10px;background:#1e3a5f11;border-left:4px solid #1e3a5f;border-radius:0 4px 4px 0;margin-bottom:6px">
+    Analise Epidemiologica da Semana <span style="font-size:10px;font-weight:400;opacity:0.7">(analise interpretativa revisada pela Vigilancia)</span></div>
+  {paras}</div>"""
+
+
+def gerar_html(items, se, ano, analise_txt=None):
     inicio, fim = se_para_datas(se, ano)
     # Referência = data de FIM da SE (determinística), não date.today(): evita que o
     # PDF mude todo dia só pela data de geração (churn de commits no git). O boletim
@@ -121,6 +143,7 @@ def gerar_html(items, se, ano):
     n_crit = len(emerg)+len(epid)
     nomes_e = ", ".join(i["nome_limpo"] for i in emerg+epid) or "-"
     nomes_a = ", ".join(i["nome_limpo"] for i in alert) or "-"
+    analise_html = _analise_para_html(analise_txt) if analise_txt else ""
     return f"""<!DOCTYPE html><html lang="pt-BR"><head>
 <meta charset="UTF-8">
 <title>Boletim Sindromico {ano} SE{se:02d} - FMS Rio Claro</title>
@@ -153,6 +176,7 @@ h2{{font-size:12px;font-weight:700;color:#374151;margin:14px 0 5px;padding-botto
   <div class="sc" style="background:#fffbeb;border:2px solid #f59e0b"><div style="font-size:36px;font-weight:700;color:#d97706;line-height:1">{len(alert)}</div><div style="font-size:11px;font-weight:700;color:#d97706;text-transform:uppercase;margin:3px 0 5px">Alerta</div><div style="font-size:9.5px;color:#6b7280">{nomes_a}</div></div>
   <div class="sc" style="background:#f0fdf4;border:2px solid #22c55e"><div style="font-size:36px;font-weight:700;color:#16a34a;line-height:1">{len(ok)}</div><div style="font-size:11px;font-weight:700;color:#16a34a;text-transform:uppercase;margin:3px 0 5px">Controlado</div><div style="font-size:9.5px;color:#6b7280">Dentro do esperado historico</div></div>
 </div>
+{analise_html}
 {secao("EMERGENCIA - Acao imediata necessaria","#dc2626",emerg)}
 {secao("EPIDEMICO - Mobilizacao reforcada","#ea580c",epid)}
 {secao("ALERTA - Atencao aumentada","#d97706",alert)}
@@ -180,6 +204,8 @@ def main():
     p.add_argument("--channel-data", default="channel_data.json")
     p.add_argument("--boletim-data",  default="boletim_data.json")
     p.add_argument("--output-dir",    default="boletins")
+    p.add_argument("--analise-dir",   default="analises_ia",
+                   help="Pasta com análises IA APROVADAS (SE{nn}_{ano}.md). Se houver, vira seção no PDF.")
     p.add_argument("--se",  type=int, default=None)
     p.add_argument("--ano", type=int, default=None)
     args = p.parse_args()
@@ -192,7 +218,12 @@ def main():
     se = min(se, se_c)
     print(f"  SE {se}/{ano}")
     items = enriquecer(bd, channels, se)
-    html = gerar_html(items, se, ano)
+    # Análise IA APROVADA (opcional): só entra no PDF se o arquivo existir no repo.
+    analise_path = Path(args.analise_dir) / f"SE{se:02d}_{ano}.md"
+    analise_txt = analise_path.read_text(encoding="utf-8") if analise_path.exists() else None
+    if analise_txt:
+        print(f"  análise IA aprovada: {analise_path}")
+    html = gerar_html(items, se, ano, analise_txt=analise_txt)
     out = Path(args.output_dir)
     out.mkdir(parents=True, exist_ok=True)
     base = nome_arquivo(se, ano)
