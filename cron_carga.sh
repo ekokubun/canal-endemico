@@ -127,13 +127,24 @@ fi
 #     Chave via --env-file (não aparece em docker inspect). Fallback: nunca derruba o cron.
 SECRET="/home/epikinesis/.secrets/anthropic.env"
 DRAFTS="/home/epikinesis/analises_ia_rascunhos"
+RCLONE_CONF="$HOME/.config/rclone/rclone.conf"
+DRIVE_DEST="gdrive:Canais Sindromicos UPAs/"
 if [ "$GEN_DOCX" = "1" ] && [ -f "$SECRET" ]; then
   echo "segunda-feira — gerando rascunho de análise por IA"
   mkdir -p "$DRAFTS"
+  IADRAFT="analise_$(TZ=America/Sao_Paulo date +%Y%m%d).md"
   docker run --rm --user "$UG" -e HOME=/tmp --env-file "$SECRET" \
     -v "$REPO_DIR":/app -v "$DRAFTS":/drafts -w /app "$IMG" \
-    python gerar_analise_ia.py --output "/drafts/analise_$(date +%Y%m%d).md" \
+    python gerar_analise_ia.py --output "/drafts/$IADRAFT" \
     || echo "AVISO: análise IA falhou (boletim segue sem ela)"
+  # Copiar o rascunho (privado) para o Google Drive, se o rclone estiver configurado.
+  # Drive do próprio usuário (privado); revisão acontece lá. Não-bloqueante.
+  if [ -f "$DRAFTS/$IADRAFT" ] && [ -f "$RCLONE_CONF" ]; then
+    docker run --rm --user "$UG" -e RCLONE_CONFIG=/config/rclone/rclone.conf \
+      -v "$HOME/.config/rclone":/config/rclone -v "$DRAFTS":/data rclone/rclone:latest \
+      copy "/data/$IADRAFT" "$DRIVE_DEST" \
+      && echo "rascunho IA copiado para o Drive" || echo "AVISO: cópia do rascunho p/ Drive falhou"
+  fi
 elif [ "$GEN_DOCX" = "1" ]; then
   echo "análise IA pulada (sem $SECRET)"
 fi
