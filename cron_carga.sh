@@ -56,9 +56,12 @@ fi
 #    --user resolver o root-owned: o conflito é de CONTEÚDO do channel_data.json
 #    — VPS regenera vs CI commita — e persiste independente de ownership.)
 git fetch origin -q || echo "AVISO: git fetch falhou — usando local"
-git checkout origin/main -- '*.py' Dockerfile db/ boletins/ analises_ia/ index.html requirements-vps.txt \
-  cron_carga.sh channel_state.json age_state.json age_channels.json \
-  age_group_data.json boletim_data.json 'boletim_SE*.docx' 2>/dev/null || echo "AVISO: checkout parcial falhou"
+# Fase A: index.html virou redirect (GitHub Pages); o TEMPLATE do dashboard agora é
+# template.html. Os JSONs derivados (channel_data.json/age_*/boletim_data.json) são
+# regenerados pela VPS — não dependemos mais deles vindos do CI. channel_state.json e
+# age_state.json (sementes da calibração) continuam vindo do CI (recalibração de janeiro).
+git checkout origin/main -- '*.py' Dockerfile db/ boletins/ analises_ia/ template.html requirements-vps.txt \
+  cron_carga.sh channel_state.json age_state.json 'boletim_SE*.docx' 2>/dev/null || echo "AVISO: checkout parcial falhou"
 
 # 3. Credenciais do Postgres (da env do próprio container)
 PGUSER_V=$(docker exec "$PG_CONTAINER" printenv POSTGRES_USER); PGUSER_V=${PGUSER_V:-postgres}
@@ -76,14 +79,16 @@ docker run --rm --user "$UG" --network "$NET" -v "$REPO_DIR":/app -w /app \
 mkdir -p "$DASH_DIR"
 docker run --rm --user "$UG" -e HOME=/tmp -v "$REPO_DIR":/app -v "$DASH_DIR":/dashboard -w /app \
   "$IMG" python pipeline.py "$CSV" --pop 210000 --output /dashboard/index.html \
-    --template /app/index.html --no-recompute || {
+    --template /app/template.html --no-recompute || {
     echo "AVISO: geração do dashboard falhou (Postgres já atualizado)"; }
 
 # 5a. Boletim PDF — gerado NA VPS (antes era só no GitHub Actions). gerar_boletim_pdf.py
 #     escreve o HTML em boletins/ + atualiza o manifest; o Chromium da imagem converte.
-docker run --rm --user "$UG" -e HOME=/tmp -v "$REPO_DIR":/app -w /app "$IMG" bash -c '
-  python gerar_boletim_pdf.py --channel-data channel_data.json \
-    --boletim-data boletim_data.json --output-dir boletins/ || exit 1
+# Fase A: lê channel_data.json + boletim_data.json FRESCOS do $DASH_DIR (gerados no passo 5),
+# não mais do worktree (o CI deixou de commitá-los). PDF e análise IA continuam em /app.
+docker run --rm --user "$UG" -e HOME=/tmp -v "$REPO_DIR":/app -v "$DASH_DIR":/dash -w /app "$IMG" bash -c '
+  python gerar_boletim_pdf.py --channel-data /dash/channel_data.json \
+    --boletim-data /dash/boletim_data.json --output-dir boletins/ || exit 1
   HTML=$(ls -t boletins/*.html 2>/dev/null | head -1); [ -z "$HTML" ] && exit 0
   PDF="${HTML%.html}.pdf"
   chromium --headless=new --no-sandbox --disable-gpu --disable-dev-shm-usage \
@@ -113,7 +118,8 @@ EOF
     echo "Boletim: $SE_LABEL"
     docker run --rm --user "$UG" -e HOME=/tmp -e MPLCONFIGDIR=/tmp/mpl -e TZ=America/Sao_Paulo \
       -v "$REPO_DIR":/app -w /app "$IMG" \
-      python pipeline.py --from-json channel_data.json --output index.html \
+      python pipeline.py --from-json channel_data.json --output /tmp/docx_idx.html \
+        --template /app/template.html \
         --se-num "$SE_NUM" --se-year "$SE_YEAR" --se-label "$SE_LABEL" \
       && echo "boletim DOCX: boletim_SE${SE_NUM}.docx" || echo "AVISO: geração do DOCX falhou"
   else

@@ -1,0 +1,1941 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sala de Situação / CIEVS — FMS Rio Claro/SP</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'DM Sans', sans-serif; background: #0c0a1f; }
+    select option { background: #1a1040; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script src="https://unpkg.com/react@18.2.0/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/prop-types@15.8.1/prop-types.min.js"></script>
+  <script src="https://unpkg.com/recharts@2.12.7/umd/Recharts.js"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.23.9/babel.min.js"></script>
+
+  <script type="text/babel">
+let DATA, AGE_GROUP_DATA, AGE_CHANNELS, BOLETIM_DATA;
+
+    const { useState, useMemo } = React;
+    const {
+      ComposedChart, Area, Line, Bar, XAxis, YAxis, CartesianGrid,
+      Tooltip, ResponsiveContainer, ReferenceLine, Cell, BarChart,
+    } = Recharts;
+
+        const CATEGORIES = {"capitulos":["I - Doenças infecciosas e parasitárias","II - Neoplasias","III - Sangue e órgãos hematopoéticos","IV - Endócrinas, nutricionais e metabólicas","V - Transtornos mentais","VI - Sistema nervoso","VII - Olho e anexos","VIII - Ouvido e apófise mastóide","IX - Aparelho circulatório","X - Aparelho respiratório","XI - Aparelho digestivo","XII - Pele e tecido subcutâneo","XIII - Sistema osteomuscular","XIV - Aparelho geniturinário","XV - Gravidez, parto e puerpério","XVI - Afecções perinatais","XVII - Malformações congênitas","XVIII - Sintomas e sinais","XIX - Lesões e causas externas","XX - Causas externas de morbidade","XXI - Fatores que influenciam o estado de saúde"],"cids":["Total de atendimentos","Gastroenterites (A09+K52)","A09 - DIARREIA E GASTROENTERITE DE ORIGEM INFECCIOSA PRESUMIVEL","A90 - DENGUE [DENGUE CLASSICO]","Geniturinária (ITU+Cólica)","M54.5 - DOR LOMBAR BAIXA","J00 - NASOFARINGITE AGUDA [RESFRIADO COMUM]","R05 - TOSSE","J03.9 - AMIGDALITE AGUDA NAO ESPECIFICADA","M79.1 - MIALGIA","R11 - NAUSEA E VOMITOS","INFECCOES AGUDAS DAS VIAS AEREAS SUPERIORES DE LOCALIZACOES MULTIPLAS E NAO ESPECIFICADAS","R10 - DOR ABDOMINAL E PELVICA","R52.0 - DOR AGUDA","R51 - CEFALEIA","Z00.0 - EXAME MEDICO GERAL","Z53 - PROCEDIMENTO NAO REALIZADO DEVIDO A DECISAO DO PACIENTE POR OUTRAS RAZOES E AS NAO ESPECIFICADAS","M54 - DORSALGIA","M79.6 - DOR EM MEMBRO","R53 - MAL ESTAR, FADIGA","INFECCAO AGUDA DAS VIAS AEREAS SUPERIORES NAO ESPECIFICADA","Febril Inespecífica (R50)","INFECCAO VIRAL NAO ESPECIFICADA","I10 - HIPERTENSAO ESSENCIAL (PRIMARIA)","Exantemática (R21+B05-09)","Escorpionismo (X22+T632)","SINAN: Dengue","SINAN: Diarréia/gastroenterite","SINAN: Influenza NE","SINAN: Pneumonia NE","SINAN: Sífilis NE"],"sindromes":["Sínd. Gripal (IVAS+Febre)","Sínd. Respiratória (J09-J22)","Febril Inespecífica (R50)","Exantemática (R21+B05-09)","Gastroenterites (A09+K52)","Dor Osteomuscular","Cardiovascular Aguda","Geniturinária (ITU+Cólica)","Saúde Mental","Animais Peçonhentos","Escorpionismo (X22+T632)","Dermatológica Aguda","Acidentes de Trabalho","Acidentes de Trânsito","Agressões","Tentativas de Suicídio"],"secaoA":["Todos os atendimentos","A09 - DIARREIA E GASTROENTERITE DE ORIGEM INFECCIOSA PRESUMIVEL","J00 - NASOFARINGITE AGUDA [RESFRIADO COMUM]","M54.5 - DOR LOMBAR BAIXA","R05 - TOSSE","J03.9 - AMIGDALITE AGUDA NAO ESPECIFICADA","R11 - NAUSEA E VOMITOS","M79.1 - MIALGIA","R51 - CEFALEIA","R10 - DOR ABDOMINAL E PELVICA","R52.0 - DOR AGUDA","B34.9 - INFECCAO VIRAL NAO ESPECIFICADA","I10 - HIPERTENSAO ESSENCIAL (PRIMARIA)","M79.6 - DOR EM MEMBRO","R53 - MAL ESTAR, FADIGA","M54 - DORSALGIA","J06.9 - INFECCAO AGUDA DAS VIAS AEREAS SUPERIORES NAO ESPECIFICADA","J06 - INFECCOES AGUDAS DAS VIAS AEREAS SUPERIORES DE LOCALIZACOES MULTIPLAS E NAO ESPECIFICADAS","A90 - DENGUE [DENGUE CLASSICO]"],"secaoB":["Saúde Mental","Tentativas de Suicídio","Acidentes de Trânsito","Agressões"],"sindromes_col":["Sínd. Gripal (IVAS+Febre)","Sínd. Respiratória (J09-J22)","Gastroenterites (A09+K52)","Febril Inespecífica (R50)","Exantemática (R21+B05-09)","Geniturinária (ITU+Cólica)","Dor Osteomuscular","Cardiovascular Aguda","Dermatológica Aguda","Animais Peçonhentos","Escorpionismo (X22+T632)","Acidentes de Trabalho"],"imediata":["SINAN: Dengue","SINAN: Dengue hemorrágica","SINAN: Chikungunya","SINAN: Zika","SINAN: Febre amarela","SINAN: Raiva","SINAN: Sarampo","SINAN: Rubéola","SINAN: Coqueluche","SINAN: Influenza NE","SINAN: Influenza pandêmica","SINAN: Influenza identificada","A90 - DENGUE [DENGUE CLASSICO]"],"semanal":["SINAN: Tuberculose respiratória","SINAN: Tuberculose outros órgãos","SINAN: Tuberculose SNC","SINAN: Diarréia/gastroenterite","SINAN: Pneumonia NE","SINAN: Pneumonia viral","SINAN: Esquistossomose","SINAN: Malária NE","SINAN: Leishmaniose","SINAN: Doença de Chagas","SINAN: Leptospirose","SINAN: Sífilis NE","SINAN: Sífilis congênita","SINAN: Sífilis precoce","SINAN: Sífilis tardia","SINAN: Hepatite A","SINAN: Hepatite B","SINAN: Hepatite C/outras","SINAN: Hepatite crônica viral","SINAN: HIV/AIDS","SINAN: HIV NE","SINAN: Hanseníase","SINAN: Febre maculosa","SINAN: Febre Q","SINAN: Tétano acidental","SINAN: Febre tifóide","SINAN: Caxumba"]};
+
+const AGE_GROUPS = ["Bebês (0-1)", "Crianças (2-11)", "Adolescentes (12-17)", "Adultos jovens (18-39)", "Meia-idade (40-59)", "Idosos (60+)"];
+const AGE_COLORS = {
+  "Bebês (0-1)": "#f472b6",
+  "Crianças (2-11)": "#38bdf8",
+  "Adolescentes (12-17)": "#a78bfa",
+  "Adultos jovens (18-39)": "#34d399",
+  "Meia-idade (40-59)": "#fbbf24",
+  "Idosos (60+)": "#ef4444",
+};
+    // ── Constantes de estilo ─────────────────────────────────────────────
+const ZONE_COLORS = {
+  sucesso:    { bg: "#064e3b", fg: "#34d399", label: "Sucesso",    fill: "#059669" },
+  seguranca:  { bg: "#1e3a5f", fg: "#60a5fa", label: "Segurança",  fill: "#2563eb" },
+  alerta:     { bg: "#78350f", fg: "#fbbf24", label: "Alerta",     fill: "#d97706" },
+  epidemico:  { bg: "#7c2d12", fg: "#f97316", label: "Epidêmico",  fill: "#ea580c" },
+  emergencia: { bg: "#7f1d1d", fg: "#ef4444", label: "Emergência", fill: "#dc2626" },
+};
+
+const YEAR_COLORS = {
+  2021: "#6ee7b7", 2022: "#94a3b8", 2023: "#a78bfa",
+  2024: "#38bdf8", 2025: "#f472b6", 2026: "#fbbf24",
+};
+
+const BAND_COLORS = [
+  "rgba(5,150,105,0.25)",   // P10-P25 (sucesso)
+  "rgba(37,99,235,0.25)",   // P25-P50 (segurança)
+  "rgba(217,119,6,0.20)",   // P50-P75 (alerta)
+  "rgba(234,88,12,0.20)",   // P75-P90 (epidêmico)
+];
+
+// ── Componentes auxiliares ───────────────────────────────────────────
+
+function KpiCard({ label, value, sub, color = "#60a5fa" }) {
+  return (
+    <div style={{
+      background: "rgba(255,255,255,0.04)",
+      borderRadius: 12, padding: "14px 18px",
+      border: "1px solid rgba(255,255,255,0.08)",
+      minWidth: 140, flex: 1,
+    }}>
+      <div style={{ fontSize: 11, color: "#94a3b8", textTransform: "uppercase",
+                    letterSpacing: 1, fontFamily: "DM Sans, sans-serif" }}>{label}</div>
+      <div style={{ fontSize: 28, fontWeight: 700, color,
+                    fontFamily: "JetBrains Mono, monospace", marginTop: 2 }}>
+        {typeof value === "number" ? value.toLocaleString("pt-BR") : value}
+      </div>
+      {sub && <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>{sub}</div>}
+    </div>
+  );
+}
+
+function ZoneBadge({ zone }) {
+  const z = ZONE_COLORS[zone] || ZONE_COLORS.seguranca;
+  return (
+    <span style={{
+      background: z.bg, color: z.fg, padding: "2px 8px",
+      borderRadius: 6, fontSize: 11, fontWeight: 600,
+      fontFamily: "DM Sans, sans-serif",
+    }}>{z.label}</span>
+  );
+}
+
+// ── Heatmap multi-ano (últimos 5 anos + corrente, sempre visível) ────
+function MultiYearHeatmap({ classifications, seList, years, raw, currentYear }) {
+  // Últimos 5 anos + corrente
+  const displayYears = years.slice(-6);
+
+  // Detectar última SE com dados para o ano corrente
+  const lastSeWithData = {};
+  displayYears.forEach(y => {
+    let lastSe = 0;
+    seList.forEach((se, i) => {
+      const obs = raw?.[i]?.[`c${y}`];
+      if (obs != null && obs > 0) lastSe = se;
+    });
+    lastSeWithData[y] = lastSe;
+  });
+
+  return (
+    <div style={{ overflowX: "auto" }}>
+      {/* Header SE numbers */}
+      <div style={{ display: "flex", alignItems: "flex-end", marginBottom: 2 }}>
+        <div style={{ width: 52, minWidth: 52, fontSize: 10, color: "#64748b", textAlign: "right", paddingRight: 6 }}>SE</div>
+        <div style={{ display: "flex", gap: 1 }}>
+          {seList.map(se => (
+            <div key={`h-${se}`} style={{
+              width: 14, textAlign: "center", fontSize: 8, color: "#64748b",
+              fontFamily: "JetBrains Mono, monospace",
+            }}>
+              {se % 4 === 0 ? se : ""}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Rows per year */}
+      {displayYears.map(y => {
+        const clf = classifications[String(y)];
+        const isCurrentYear = y === currentYear;
+        const lastSe = lastSeWithData[y] || 52;
+
+        return (
+          <div key={y} style={{ display: "flex", alignItems: "center", marginBottom: 2 }}>
+            <div style={{
+              width: 52, minWidth: 52, fontSize: 11, textAlign: "right", paddingRight: 6,
+              fontFamily: "JetBrains Mono, monospace", fontWeight: isCurrentYear ? 700 : 400,
+              color: isCurrentYear ? "#fbbf24" : "#94a3b8",
+            }}>
+              {y}{isCurrentYear ? " ★" : ""}
+            </div>
+            <div style={{ display: "flex", gap: 1 }}>
+              {seList.map((se, i) => {
+                const zone = clf?.[i] || null;
+                const obs = raw?.[i]?.[`c${y}`];
+                const hasData = obs != null && obs > 0;
+                const isFuture = isCurrentYear && se > lastSe;
+
+                if (!zone || isFuture) {
+                  return (
+                    <div key={`${y}-${se}`} style={{
+                      width: 14, height: 18, borderRadius: 2,
+                      background: "rgba(255,255,255,0.03)",
+                      border: "1px solid rgba(255,255,255,0.04)",
+                    }} title={`SE ${se}/${y}: sem dados`} />
+                  );
+                }
+
+                const z = ZONE_COLORS[zone];
+                return (
+                  <div key={`${y}-${se}`} title={`SE ${se}/${y}: ${z.label} (${obs || 0} casos)`} style={{
+                    width: 14, height: 18, borderRadius: 2,
+                    background: z.fill,
+                    opacity: hasData ? 0.9 : 0.3,
+                    border: isCurrentYear ? "1px solid rgba(251,191,36,0.3)" : "1px solid transparent",
+                    cursor: "default",
+                    transition: "transform 0.1s",
+                  }}
+                  onMouseEnter={e => e.target.style.transform = "scale(1.4)"}
+                  onMouseLeave={e => e.target.style.transform = "scale(1)"}
+                  />
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// Manter versão single-year para compatibilidade
+function ClassificationHeatmap({ classifications, seList, year }) {
+  const clf = classifications[String(year)];
+  if (!clf) return null;
+  return (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 2, marginTop: 8 }}>
+      {seList.map((se, i) => {
+        const zone = clf[i] || "seguranca";
+        const z = ZONE_COLORS[zone];
+        return (
+          <div key={se} title={`SE ${se}: ${z.label}`} style={{
+            width: 16, height: 24, borderRadius: 3,
+            background: z.fill, opacity: 0.85,
+            display: "flex", alignItems: "flex-end", justifyContent: "center",
+          }}>
+            {se % 5 === 0 && (
+              <span style={{ fontSize: 7, color: "rgba(255,255,255,0.6)" }}>{se}</span>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── Tooltip personalizado ────────────────────────────────────────────
+function CustomTooltip({ active, payload, label, channelData, year }) {
+  if (!active || !payload || !payload.length) return null;
+  const se = label;
+  const seIdx = (channelData?.se_list || []).indexOf(se);
+  const ch = channelData?.channels?.[String(year)]?.[seIdx];
+  const clf = channelData?.classifications?.[String(year)]?.[seIdx];
+  const obs = channelData?.raw?.[seIdx]?.[`c${year}`];
+
+  return (
+    <div style={{
+      background: "rgba(15,12,41,0.95)", border: "1px solid rgba(255,255,255,0.15)",
+      borderRadius: 10, padding: 12, fontSize: 12, color: "#e2e8f0",
+      fontFamily: "DM Sans, sans-serif", backdropFilter: "blur(8px)",
+      maxWidth: 280,
+    }}>
+      <div style={{ fontWeight: 700, marginBottom: 6, fontSize: 13 }}>SE {se}</div>
+      {obs != null && (
+        <div style={{ marginBottom: 4 }}>
+          Observado: <b style={{ color: "#fbbf24" }}>{obs.toLocaleString("pt-BR")}</b>
+          {clf && <> — <ZoneBadge zone={clf} /></>}
+        </div>
+      )}
+      {ch && (
+        <div style={{ fontSize: 11, color: "#94a3b8", lineHeight: 1.6 }}>
+          P10: {ch[0]} · Esperado: {ch[2]}<br />
+          Limite crítico: {ch[4]}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Gráfico principal: Canal Sindrômico ────────────────────────────────
+function EndemicChannelChart({ channelData, year, overlayYears = [], logScale = false, ageGroupSeries = [], ageChannel = null }) {
+  const chartData = useMemo(() => {
+    if (!channelData) return [];
+    // Use age-specific channel if provided
+    const effectiveChannel = ageChannel || channelData;
+    const { se_list } = channelData;
+    const raw = effectiveChannel.raw;
+    const channels = effectiveChannel.channels;
+    const ch = channels[String(year)];
+    if (!ch) return [];
+
+    return se_list.map((se, i) => {
+      const entry = { se, obs: raw[i]?.[`c${year}`] || 0 };
+
+      if (logScale) {
+        // Modo log: linhas individuais
+        entry.p10 = Math.max(ch[i][0], 1);
+        entry.p25 = Math.max(ch[i][1], 1);
+        entry.p50 = Math.max(ch[i][2], 1);
+        entry.p75 = Math.max(ch[i][3], 1);
+        entry.p90 = Math.max(ch[i][4], 1);
+        entry.obs = Math.max(entry.obs, 1);
+      } else {
+        // Modo linear: áreas empilhadas (bandas)
+        entry.base = ch[i][0]; // P10
+        entry.band1 = ch[i][1] - ch[i][0]; // P10→P25
+        entry.band2 = ch[i][2] - ch[i][1]; // P25→P50
+        entry.band3 = ch[i][3] - ch[i][2]; // P50→P75
+        entry.band4 = ch[i][4] - ch[i][3]; // P75→P90
+        entry.p50 = ch[i][2];
+        entry.p90 = ch[i][4];
+      }
+
+      // Overlay anos
+      overlayYears.forEach(oy => {
+        entry[`ov${oy}`] = raw[i]?.[`c${oy}`] || 0;
+        if (logScale) entry[`ov${oy}`] = Math.max(entry[`ov${oy}`], 1);
+      });
+
+      // Age group data
+      ageGroupSeries.forEach(ags => {
+        const pt = ags.data.find(p => p.se === se);
+        entry[`age_${ags.name}`] = pt ? pt.value : 0;
+        if (logScale) entry[`age_${ags.name}`] = Math.max(entry[`age_${ags.name}`], 1);
+      });
+
+      return entry;
+    });
+  }, [channelData, year, overlayYears, logScale, ageGroupSeries, ageChannel]);
+
+  if (!chartData.length) return <div style={{ color: "#64748b" }}>Sem dados</div>;
+
+  return (
+    <ResponsiveContainer width="100%" height={380}>
+      <ComposedChart data={chartData} margin={{ top: 5, right: 20, bottom: 5, left: 10 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+        <XAxis dataKey="se" tick={{ fill: "#64748b", fontSize: 10 }}
+               label={{ value: "Semana Epidemiológica", position: "insideBottom", offset: -2,
+                        fill: "#64748b", fontSize: 11 }} />
+        <YAxis tick={{ fill: "#64748b", fontSize: 10 }}
+               scale={logScale ? "log" : "auto"} domain={logScale ? [1, "auto"] : [0, "auto"]}
+               allowDecimals={false} />
+        <Tooltip content={<CustomTooltip channelData={channelData} year={year} />} />
+
+        {!logScale ? (
+          <>
+            <Area type="monotone" dataKey="base" stackId="ch" fill="transparent" stroke="none" />
+            <Area type="monotone" dataKey="band1" stackId="ch" fill={BAND_COLORS[0]}
+                  stroke="none" name="P10-P25" />
+            <Area type="monotone" dataKey="band2" stackId="ch" fill={BAND_COLORS[1]}
+                  stroke="none" name="P25-P50" />
+            <Area type="monotone" dataKey="band3" stackId="ch" fill={BAND_COLORS[2]}
+                  stroke="none" name="P50-P75" />
+            <Area type="monotone" dataKey="band4" stackId="ch" fill={BAND_COLORS[3]}
+                  stroke="none" name="P75-P90" />
+          </>
+        ) : (
+          <>
+            <Line type="monotone" dataKey="p10" stroke="#059669" strokeDasharray="4 4"
+                  dot={false} name="Atividade mínima" strokeWidth={1} />
+            <Line type="monotone" dataKey="p25" stroke="#2563eb" strokeDasharray="4 4"
+                  dot={false} name="Zona normal (inferior)" strokeWidth={1} />
+            <Line type="monotone" dataKey="p50" stroke="#d97706" strokeDasharray="4 4"
+                  dot={false} name="Frequência esperada" strokeWidth={1.5} />
+            <Line type="monotone" dataKey="p75" stroke="#ea580c" strokeDasharray="4 4"
+                  dot={false} name="Zona normal (superior)" strokeWidth={1} />
+            <Line type="monotone" dataKey="p90" stroke="#dc2626" strokeDasharray="4 4"
+                  dot={false} name="Limite crítico" strokeWidth={1.5} />
+          </>
+        )}
+
+        {!logScale && (
+          <Line type="monotone" dataKey="p50" stroke="#d97706" strokeDasharray="6 3"
+                dot={false} name="Mediana" strokeWidth={1.5} />
+        )}
+
+        <Line type="monotone" dataKey="obs" stroke="#fbbf24" strokeWidth={2.5}
+              dot={{ fill: "#fbbf24", r: 2.5 }} name={`Observado ${year}`}
+              activeDot={{ r: 5, fill: "#fbbf24" }} />
+
+        {overlayYears.map(oy => (
+          <Line key={oy} type="monotone" dataKey={`ov${oy}`}
+                stroke={YEAR_COLORS[oy] || "#94a3b8"} strokeWidth={1.5}
+                strokeDasharray="5 3" dot={false} name={`${oy}`} opacity={0.7} />
+        ))}
+
+        {ageGroupSeries.map(ags => (
+          <Line key={`age-${ags.name}`} type="monotone" dataKey={`age_${ags.name}`}
+                stroke={ags.color} strokeWidth={2} strokeDasharray="2 2"
+                dot={{ r: 2, fill: ags.color }} name={ags.name} opacity={0.85} />
+        ))}
+      </ComposedChart>
+    </ResponsiveContainer>
+  );
+}
+
+// ── Gráfico de Exceedance ────────────────────────────────────────────
+function ExceedanceChart({ channelData, year }) {
+  const chartData = useMemo(() => {
+    if (!channelData) return [];
+    const { se_list, exceedance, classifications } = channelData;
+    const exc = exceedance[String(year)];
+    const clf = classifications[String(year)];
+    if (!exc) return [];
+    return se_list.map((se, i) => ({
+      se, ratio: exc[i], zone: clf?.[i] || "seguranca",
+    }));
+  }, [channelData, year]);
+
+  return (
+    <ResponsiveContainer width="100%" height={180}>
+      <BarChart data={chartData} margin={{ top: 5, right: 20, bottom: 5, left: 10 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+        <XAxis dataKey="se" tick={{ fill: "#64748b", fontSize: 9 }} />
+        <YAxis tick={{ fill: "#64748b", fontSize: 10 }}
+               label={{ value: "Obs / P90", angle: -90, position: "insideLeft",
+                        fill: "#64748b", fontSize: 10 }} />
+        <ReferenceLine y={1} stroke="#ef4444" strokeDasharray="4 4" strokeWidth={1.5} />
+        <Tooltip formatter={(v) => [v.toFixed(2), "Razão Obs/P90"]}
+                 contentStyle={{ background: "rgba(15,12,41,0.95)",
+                                 border: "1px solid rgba(255,255,255,0.15)",
+                                 borderRadius: 8, fontSize: 12 }} />
+        <Bar dataKey="ratio" name="Obs/P90">
+          {chartData.map((entry, i) => (
+            <Cell key={i} fill={ZONE_COLORS[entry.zone]?.fill || "#64748b"} />
+          ))}
+        </Bar>
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}
+
+// ── Legenda de zonas ─────────────────────────────────────────────────
+function ZoneLegend() {
+  return (
+    <div style={{ display: "flex", gap: 12, flexWrap: "wrap", fontSize: 11 }}>
+      {Object.entries(ZONE_COLORS).map(([key, z]) => (
+        <div key={key} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <div style={{ width: 12, height: 12, borderRadius: 3, background: z.fill }} />
+          <span style={{ color: "#94a3b8" }}>{z.label}</span>
+        </div>
+      ))}
+      <div style={{ display: "flex", alignItems: "center", gap: 4, marginLeft: 8 }}>
+        <div style={{ width: 20, height: 2, background: "#fbbf24" }} />
+        <span style={{ color: "#94a3b8" }}>Observado</span>
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+        <div style={{ width: 20, height: 2, background: "#d97706", borderTop: "2px dashed #d97706" }} />
+        <span style={{ color: "#94a3b8" }}>Esperado</span>
+      </div>
+    </div>
+  );
+}
+
+// ── Dashboard principal ──────────────────────────────────────────────
+
+
+    
+const DOCX_B64 = "UEsDBAoAAAAAAC4gcVwAAAAAAAAAAAAAAAAFAAAAd29yZC9QSwMECgAAAAAALiBxXAAAAAAAAAAAAAAAAAsAAAB3b3JkL19yZWxzL1BLAwQKAAAACAAuIHFcOupc7UsBAABqBQAAHAAAAHdvcmQvX3JlbHMvZG9jdW1lbnQueG1sLnJlbHOtlE1OwzAQha8Sed+4KVAoatoNIHXBBpUDOM4kMYnHwZ7QltNj1L9UKhELL2fGfu+b5yjz5VY30RdYpwymLInHLAKUJldYpux9/TJ6YMvF/A0aQf6Eq1TrIn8FXcoqovaRcycr0MLFpgX0k8JYLciXtuStkLUogU/G4ym3fQ12qRmt8pTZVZ6waL1r4T/apiiUhCcjOw1IVyy4o10DzisKWwKlbF/HXofx6/aTkPbY6Qysz/FMcGoNQdyEhCiMITTUj+HUGoK4DfoQQOSX7j/FoTOEcBcSQRr9O+ohHDtDCNOQCBWIHOwZYF8nQ/73oT+Fvv++HvSvN0T17KPaJLiVKKbfss4+g2bilWyjsO7F4mWd14Xa1F3WYVwqqrosVoZLgaIZAeaglTT8eOfV5B7neeu38fO/dpmFzRJpLbIG+nEeWsdA+cVPc/EDUEsDBAoAAAAIAC4gcVw+buFaUR8AAJbvAgARAAAAd29yZC9kb2N1bWVudC54bWztXVtvGzmWfu9fQXgxAwexS6qLbp5JL2RbTgTEHW+c9uSVqqIldqqKClnlXB4G87TAvu7MD5j0LNDoBvIUDAaYfRu974/oX7KHVSpdrHIi23EiUcfd0aVUxSIPPx5+3yGL/P2/v45CcsGk4iJ+sGVb1S3CYl8EPO4/2Pr+2dFuc4uohMYBDUXMHmy9YWrr37/9/au9QPhpxOKERP5etx8LSXsh/P7K9sgru0ZeDW1vi0Disdp7NfQfbA2SZLhXqSh/wCKqrIj7Uihxnli+iCri/Jz7rPJKyKDiVO1q9mkohc+Ugpwc0PiCqiK5aDE1MWQx/HguZEQT+Cr7lYjKF+lwF1If0oT3eMiTN5B2tV4kIx5spTLeGyexO8mQvmQvz9D4rbhCLnPf/JLDsXWyO1YkCyEPIlYDPpwW46apwY+DIpGLjxXiIgqnVWB7t6uDQ0lfwds0wWWyH+QXRWGe84+naFeXqBGdxOSKZbIwf88iJxHl8fTGNzLNjHHt2vUScC4nMOzfrnIeSpEOp6nx26XWjV9M0tJt/hppjSt5tmjqdpk5HdDhpAX6r5dLbIw7nZ5X8QdUJuz1NA372onUKq1KczEh5wYJQQEdezEp99pJ1Ss6VwsJLYnlSwlBrhZSWhLUl1MqKVz9Zik5iyk1bpaSu5hS82YpLcAJHMmLGyTFp22MRm5w7RQalUgELHSnztCu+2zJ5lG0tea4sVb8aXl0OnzJ/BTp1Cfp8Nn83CwzMwmoIAkG10rFKXxzRV9LEzqgajCb4vXcGbTXIrk3EdhIE5+eCN7o92H2ciL1mxpSHyqGwK8MOh+4CbjC6lbl299XxudUigtKr6LnCZPZRfqaV3s/+HDwgoYPtnzo9pmcTenVXv4y/nwk4kTpJJTPwe+3Jadgwld7vpr5wqhK2orTmUODdqwm52c37eWvByp790UoZJELZ7/mNTr5aeptcdSrFkcO1PyxyiR/ibZ9VlIwylAyxeQF2/p2/8njzrPuMemcdA87x90nj0d/ftg9eEJOO8ft79qPdQJJnsySprNX1XReo1arty6bzqkvmi4/9knTARmmXJFOHIx+AewKRfYpsHJOY/j465/+Qr4/aSvylAtyEFIpKqcn17em91WtyfPXMmvWvYbX3F+wplNiTWcpa57xPg9HP8Y+p6Qz5AGLuAhHH/rcp98cpSB7Rj+N/ibIcRpznw9pSAJGTunon/AG/0+sfH0Tr1lbv4WJTzsESAH45noGT7uhLQfybPST0J/0D+tmvo8gtOW13f3mZfPZzUXz5cc+ab5DGgi1R7qHpwXwtp9qPTn6IAF9drNxj/zrH+RYswFBHtIoorsngislYvKIMzl6J1+m4CbWzcTLGLXEidrLOdF2ktKQv81b9x5RrK/buto9Z1xSRUZ/VaQ50HbtvE7k2AfQNBHR6F0CroEEHOwKLkOf6A6utm2Wh54uR/JmqHNA+6zIYHk1DE+TNyErivOIUR2KsccFvaKKVs9duCXUwF2OGtgWOaE6nhRR8pBJGt4YuXdulhn3WFJeZ7nydlTCSE+ELOERodnxOKGEEsUBpDn02HzPBHiNgAVAZwRY/T7mAQ2Y0r70RELZBGknLA64jhgJsq3pwL25zgoowQ4Bskt6VDGiaYOfcwo25RS9CaewyBMSlXmXwYx3IUxB9ikJecQpFIFAOQKe8AtIavvEru6QE6cGLzX9qVEjkNVW9R4ZAo7yslwuImQwpEpxYOM0DgTkMKDADgmLCNQ13PCtiCm4xdNUxwnEDjmFJixpPPoJLm2HTCbwrjv0vEBww07EZH/0i+7pLcMh1c5rdsBV1ksAYHQYVDKo36y/dQBd8FYj2xlp1D8C/IS6B3UNONIdTtEzE5W5vgKW+hc6ZGB6fZUgoqdvqQ/v6IokQ9DGGVGSkMwYFDmE9ZUFOnZIn0JdJVzXLIWS8fFJfRanPKYauWwCIUouwNOGjF6wXRHDvzS5QQW6q+oqb1HPhyBue4LKgHDdL1Pd3vbInG0gi9DxyJDHL3R2ARFCvoFucovIPS3zZTd48SpJXrR+GLyy49d+TOtv/Re9l1sLJprvl4pE87yvWgPQEl+BxmcvxIu0l8ZWnyeDtGdxUdGuLtzVLUH7hcplIE2shb1zqWUdi/xHSgMpyFOmUvAAmtJnvuRCkePRzwE01UcTv1PaTJNeOH4b36kX/mFCkILXVBfy1YOtZqPgn3DCvpABkyr7JoZFnnV8OGSZ0XShH2xpiqa/qregYfOLQ3aeXOf8nkiA5l3nCsn7g2vdgkMFBuzR9S85W/6SyrzZKvP2fih5oD/24f1AhLnBnWZh8LnDrTs6atvlh6etZiajSZ5zP38dl8Mvg820FIm/JGoOsr/CfPYSuCm94hPIKb3m49gpuaRyqVxqEMDP5zycNvaJWIMuUxamOKZyaobLNqtX58p8+edJRU1KeFUCRXGuSKEyyUllWo2z7nXVYiFH2d9nFPPtvqQXZVq8MkX3pzHeQogjxFcV4ieSI8AR4OYCXLNdBDgC3FiA5zLuG8fZdTwEOgLdWKCfUUl+c1uET3UsQhwhvmoQP+38tp/87qRV/WZb85Z7t0a7g2hHtK8q2vWI1TfbQyp9uP1HsF6ZRBQxrvhp4I+ryQjg66x8bdi72d9nhP0hi/spQ6p+Y4B3Ok7HMQPgq+HZWy17316Yp3mbwPnjZ20EOHrwrzcH8bN7bduzmm4DQY2gNgnUjlVv2ghqBPWXpSLFPc9pqNhWQUxKjt4t/O/bDQwoIhE3mIjbtx4S2uAQInr3VaQsrSrZPu3Yuy2MGCLONyRiyKmUo585rfQha1JkbZknGENE6mIudcEYIvp007hLw3I8F0GNoDYJ1J5VrSOokYqYS0XuOy7GCdFtb2iU/NaPT2AIEaG/SozFtQCRGEREpG9UEPEkZmkkYk7Jdx1k68jWjWXrGDhEP24cY3HcKmIaMW0Qph2rjrFwJCIGE5H7joNhQ0S4wQi3y9YCx9ggspK1ZSV2zcPIIOJ8oyKDz0SSb5VBpyuRK2TmN+ctR+5Bwwy8rwhvcbxqdWFd5NusmfXksPO0fYhhQnTqJpEXt+ZZThVXgUNUG4Vqu2XZ3q2VJqIaUb2W86/u2zaGERH9G4r+JkYYEfom0Zla1WrUGhhkRKhvVJCxS3bJoWB6yz9FeHzOfJ8LBZ+Z3oaOKp5ke3Ri3PHmTQDHS1d9vBSnJqKPN4zOuI5Vt3FdRAS1SaB2GpZTcxDUCOqNjLncd6oYcUQibjARx3UR0bubRVlcy8OHmhHpVyPdyKjic7JL2kMqWTgQBI4OuaTZbva4qe0t6AvOX8T5i6aD3CDPbg6HaVqeh885I6gNA7VTxVgignpDY4k4eRHBv6ngv/XWWhhlROivFJmxvCY+II1IvxLpZkYZz7pdPX/xlMdgx2zOItQ55ThZ8eaYxyAjBhmNB7lBjt0YClO3rVoD97xFUJsE6pptuS0MMiKoNzPOghMWEf2bi/5b+32MMiL0V4nNNK2mjVFGRPqVSDczylgEGVXCIkoEvIkoVX4aUonMHgONGGhEkG+AbzeGxXiO5bRaCGoEtUGgdquW3cRA4y3oCD4buuLPht73MJiIbntTg4m42zNC3yjG0rDclo3BRET6RgUTu/F5mLL4Le72jMHDlWLrGDxcOZAb5MuNYS22VW3hJEXEtEmYdq1mC7dxuTGmD+2jdqeGmP58ZKRarx159c+I8N0G7viMXntTQ4e3XrkFQ4cI/VUiLM54EmIT44YI882IG56RXfJM0lglQsZCEb0ZND7ojCHEFWLtGEJcPZAb5NaNYS+e5eL0Q8S0UZh2rJaL+5vfgozg7MNVn31Yw9mHiHCTEW7fegwI44SI71ViJS3ceQVxfjXOjQwUdue2XvG51M8p49YrOMS/Wuzlsw/x77e7zzFSiH7dJP7iWTUXJ2Yhpk3CdM1qtnArIWQi5jKRXcfFSCF6bZxsiEFEhP76E5Z6s4lBRMT5RgURn3fPZqOIfRbzJJU8Hr3DMCKSd5PJO4YR0bObxmBs2/IcnHGIoDYM1E69gaBGUG9kmAW3b0bwbyz4XYwxIvSNIjNWE9dCRKRfjXRDo4x6X5UTFjLCSMJ8Hgii0p6fJqMfY4ZxxhsjH+OMnxv7GGdcLYSb5NuNYTGuVXdxCwrEtFmYdpr4YDNiejMDLfdtDDMi+jcV/bh/M0LfKDJTb7YwyIg436gg4+noPdQUV7jfCgYUMaCICN8AP24MX6nhTisIaJMAXcdZuMhBzOUgu04dw4Xosjc0XIizEhH6ZrGVPFjofTpYqN964cQkWaI9ObHmkPZZcccigXnrDU+TNyEr8veI0QAANQaazhd80wY7B8M+2HImVfLVuk5nv+Y1FvY6cKuLtnaryzkPi7Tj0buQK0aGcJ92X9KLsilw83ab2qbHzoVk+n7Vramp7FU1leMtmio/9klTHbK4n7I504xfrriAkLKTV2Gx3npJ2yyOLbF48idNRdqPn7XJNVA0hk3za6BmBhwl7chZrh09Y3Ew+iX2Od37QrX+WbLdTvWGPoJEAnpHGggSMGI3fkNYRJyqU9PvkoV09NPob4KM/kqi0c8Bp/o3ZxdePGuT6lhbZK1q1/asptsgPlVC7ZAh9/P6teyWTWJKTjvEBv+/ok7qVuXWZQPcRZQApk8uLfy22pVGtp2qzj40vbcCaokNOXiWiPu0wiIm+7mXubdpLQ9I4ZBKKHl4b73aYKuaN0BocYoMJY8Yl/CpBXW8UXV4SjWcQx7QgK1VDZ5ovxkLItJExKLC49F7nwvtWHh8wST8AnIFusTNapIHIVWKn4NbysnB2nWOp6nPlBJ7pEr+9Q9yyvqppPHoJ+BvtquPtEMmE/2tpb91Ci8MF9SzA1NfDOeUTdW9pDT3g+z9o0GScU9YRC8y6j3OeCGdi3RWUZ1+9o68nWNLMl8ATwXPsV7suhsnLM4biSS6nfydKc3AfMimFCEjFywR+p47pBeKlynjGUHLuwt9WpTGkwYG3wgFjT5Mx3zcIsci5pAAJB4y+JClzXUQKB6fgTq+TMdzKuXoZ04rfciaFFnYjCeo7FHZG67sHReVvSHKvmE5nntZ2dfd6ljXO19M1hcZ/xyDYLcwSG2tFb/bQMVvjOJ3LdtBzW+G5p9V+G7r3g5Uq6Q+1MrovUrGXjcABgm6UUF/qoZQz9mmV1RtVEUbHA2ozgUDapeDAa6zEA2oYTAAgwEL2X+qBTYgSpIL3ufh6EcNFhJQ8jIde0j9ZfSunwIDIEJyoO9FzECJnmRkANexmBE4XXN7KmcjACqVOgIAHMIHCw2YDiAwBTVyPU+0OWGAk5ilEZiPXn5CB6U/Sn/zpL+D0t8M6e9ajltdGNP3WoXyt40c0a+vt76vo743Rt/bNQ/VvXHq3mmgut9AdW9/XN071cWx/rKdcVHeb7q8fwiuI064BKeiQFdCxwAHCPDqfjz6MPYm/JxJplEUkm0en4cpi9/SHXLw5Kx7uGu3gM5lmtSH/+7NavuEvqY4tr+UYhMJGBdMRRPAUBYmEWrN1L3jVasLNlle3R+5B42bqPvjJ4edp+1DVPhr4GxKp+3bqPANUfg1z3Kq3mWN37Rq9dqXV/lF5r/yAH9zrQMAHg7wmxMAqFWtRq2BMQAjYgAfn9VvtzarVRqs9OfG8ReH8VsLQr/5mXR+zufXVueXypHN1fnHVItwEo3Fec7DgZ1JkXDo2rNZ+okOGepCUuggOOhQHzi6zOf+0wyBqN5Ln5cgu+SwiLfy+Jz54JIV1VMZdDRF8URvBE7XTdDjcD2K+Y85xLLh+iqKeUPEvGPV7ZJn8GuTEXvbzBH7NX8GHwW7OYLdtTyckb8Reh2fwl+z7nFJve4sCPb8IX18Cv8LdOVrrti74B9UwvtUQheQajkJToOOSTcjPBqGLJ9PTyIWgGecf0afqSHz9WYOPs6kv2I/XZDtbSAGLByIuWlSogwlKyzUceQdxfonst1RyejdBQsn6nz7gsItcg8JbuN+Pgr/UcG+WRRl7SiJ27Q8b3GGveU17I0dfbfXW8zjgnpGifkmTsDfCDFvb1ajNEfMO5fF/NyKek5jQcwvjr6XbcGEo++bruVx9P0OZfxZt6tH4E85GDXKRt2hOVG+bsPtqOJRxeOQ+wYL+Lpt1UCrLw65g+YZC/iNWx/PWWsB77VQwBsj4JtW00YBvwkC3m5sVqM0R8B/fDTevazfvcaCfndQv6N+R/3+JfV7Id9VwoDmCXgTUar8NKQSJTxKeDMlvOL9OOtyE36RuRIPdbwhOt5zLKfVWtTx1ao31vGtTZPx673MPT4Fb5CMb1huy0YZb4CMp1ndUdDtNJPtXm2zGuGmyPaFOfTe3a1dj7IdZTvK9mVs2y0WAly/dehRpqNM/0S2n7Igzd3CrFDPVrNs4JL0hgh1kOSthfH2eqMYbK9umkqvrrVKx8ny5oh0p3ygvYkKfU0qMFPoKs+9HnAHka67yGx6/L0dkozeF/6Wyp644FKobOunybL1gd5lmvvFptFkMHofSGjOG1X95ih8e0Hi5xvQTZawr14W+Ysr2Fc/WfWo8VHjo8b/fBr/jOySZ9BgFVg2BtNlyw3gxHqU+6bJ/StH5Ws4Km+I2Pcst2RQ3imG5F3PyNXs1nv/Oc9DTW+Mpm/hWnYmiPrFYffmZjVBc0T5x4fdmwubyjXvblM51OSoyVGTL2Pb7tyydT6XOka6jsvWVeu1I69+2TLL6vJD+6jdqd1El++3u89RlK+BF5mOwY+fd8+G3x0XFbkpirzm1hcV+WS1OhfH39enMsm2jVrdGK1ebzZRqxug1T+5VB1OmV+vPvPqpers+tyj7gvPutt3NZ4+5vHrqt3LZcgGa/dy0Y5ivPzZ9bNZNd5nYLtUgrN9h3Ic5bhZchyXkDdekdu25TkLg+ROoxgkr2+aInfXWpE7LkpyYyS5bTXxuXUjRPnCALqzWY3QHBG+MIBuz60XvziCvjip3UURjiIcRfgtF5ADEX7C9KZ3JGE+B6qm0p6fJqMfY4YyHGW4STK8bA1428YxcTMUuGvVXWdhTHxzF45b7/XfXRTg5gjwerOF8ttE+b1hUWmD5ff8I+UL27W5i2Pgn2m5d5TfKL/nK3dz5Pep3mQ+5Grt1oFDqY1S+6PZvmICeh3Fthliu7aw+FttrLO9jdspfb1Hum0U2gYJ7VKZ7aHMXpP6Q5ltlsx2Fuaa1+Z0trMw1RyHuVFn343OzlLraYMmb4Y6Ldpnxa2uwNVp8iZkRcYeMRoAKuxxllcQI+X63C0xsruckT2LgESPE/hOGDmRXMisT1GlVk564fhtnGgv/MPE2sFrqsvzClpbozrOEZywLyTII5V9E8MrGy9NE1E03XG44aONveT8nkgSEV3nCsn7g2vdgkNdBezR9S85W/6SyrzZKvP2fgj1oz/24f1AhLnBa4W954661dLDtlN62KtO4D1zmyS/r5+/jnPhl1X6JA+Jv2SVH2R/E3+9RKWXXvGJai+95uMVX3JJ5VK5ZoM940ZZJDcJ9uhLjqmcmuGyyerVuTJf/tkuLDop4VUJFMW5IoXKJCeVaS3OusEf/EnmmV6c42u7uaPsbyH41iwJvjWXcnP/VuLOKlNcfxrd07aE8EZ4rxq8231JL8RtMT7tGBDjiPFVw/iUm94W5x76csT5yuJ8rNpP0z7TcL8a7JUJO0eO/kngj6sJgX894C8xrHQLqNvIyhHQkHmdla/txz87uA9Z3E9vzVU2mJMfdTpOxzED4avBVcpXkL8NV3n8rI1sHH34l/Thd+u1u9BO43xkVhI9OPv3fNFhH/IvRaj3HUuEzswO6YXiZcp4NjSVz0nQp0VpPBnVzZYyJkMxLDYqs0gxqCVJyOBDljbXviEen4F8H5uWqXy/bD498v3NA7SZfJ9TKUc/c1rpQ9akyBotT1ABoAJABYAKAL36mpCUp/rZrNFPwNAveJ+Hox/1HEUSUPIyHc+31V9G7/opBcIPWkBvezkWCkr0JCMDuI7FeqMSnu2JKWdpv0qlpv0sIr5k/iDb15gpKBJVyP2xURnL/cvm+CL33zxAG8n9T2KW6v2s6OXHXJHvI99Hvo98Hz35yhKTh1TSOOGS8FiBE1dkCAdIwGk/Hn1QSfbsLz9nkmkdEJJtHp+HKYvf0h1y8OSse7hrt3bIMOsAfPjv3izZT+hrihF+bEor1FncbWPykOUjoE1l+c9EAh2A3oE2YXGQxXZE2XNySPeXpftH7kHDDMCvCN0v3Wr6FpA/fnLYedo+RMqPbt0gyn93O5Ajkd/sBmIMka8hkUdAm0rk9Y4Qh0I7eKp9+znzfS4U1UOxOvijeKK3aKTI7W/D7TGUj6F8oxGOXn7VSEs3vmAq4X0qiU9T7dAD4O/jLVEY4dEwZPmMHBKxgAd0fmo/U0Pm6/WKfZyLg63EYHJfR3KPgDaV3D+f3XMdjg65pMnow+Ut15HOY6geQ/VI6dG3rzRVwVA9NpC17wbutok0kM0joI1l82fdbAPnUw6OP8pC9FDnlGNsHsk8knkk8+ja14ipIJnHBrL23cDdNpEmknkEtLFkvuDyKmERJQLeRJQqPw2pRD6PfB75PPJ59O7rQ1aQz2MDWftu4G6bSAv5PALaVD7fLZZCwGVvkL8jf0f+jt58rcgJ8ndsIGvfDdxtE7GrSOAR0aYS+DOyS55JGitw/zH49+zhKJxbg1weuTxyeXTs60RUkMtjA1n7buCOuTzuN4uINpbLd+cefPW51NNq8MHXW8L+0D5qd2pmwH41+Hy1Xjvy6p8R+Pvt7nMk8+jZTSLz5Swe2Tki3lx2jrvDIqKNZefPu2ez9LzPwMGnksd6oUnk58jPkZ8jP0ffvi5cBfk5In71nPod83PcwRURbTA/10+mnjC9DDBJmM8DQVTa89Nk9GPMkKEjQ0eGjgwdvfu6sBVk6Ij41XPqd8zQcfdVRLSxDP1U78wRcoXPmiIbRzaObBw9+fowkxuzcf3WCyf2ye7RkxPTDmmfFRkoEpg35fA0eROyIruPGA0AXWPU6WzCN22/c3AkD7acSf18NW/i7Ne8xsLTLm510fRudSnT1yzynUgoOWaJCEQ4+tDnPi2x+7zZFkxje1/GNDNwa5XArbUk3AIWij3ykEYR3T0RXCkRkwFncvROvky5LyxyQiUlPg0oUSyiMSVsyAMW8cJEZPu0c2+HCBKP/hkxmaHWp0oo8hyu6KeMpBElAVeJ5L2U589VFLfST1sk9DXVT1Xkc3Ap+b//JX/Mc7RNd0jvnkXaJKKyD+0g5G9pngAUIQ2htlgEt/kj2eexiMA25DvWpwm/gAt9OkxSSWO9sxlRoicZ5GEIblBfnozeD3XeIa8BDSCv84USpduamVTzHZXwKLflHjke/awxT7QhjkXme1RWNW7Vgu6R0EhA7VH9IxAJckBlKLINQAmc9zKlcQJsc6gNDKaHQ9sndnWHnDg1eKnpTw39qVW9Z7pVzwChQWHVx4xesF0Rw780Ib/+6S/QRnxoQGHeQqBB0VhMnkMC849+JiyrFvjMXvthyjPwvkx1sF2fC5f0qGLQQFXWVnyAeR+qAeyvzww5NAH9lFKfxXBt1omwmXox3fr787bZI07VcaDxw1uNbHvahBmshyG4eAV+5UluVabPsMm54LnZR+/BmEPoanzRY1I7EQ12X7uX7dxbZAcSLvW1P6TxQFxKrK7rksdFWnTIYprdWhDR07mFVEyvjYOQKsX1HpG5xwZPXSNvBRhij5ymPgP/T7Z//a//ATcB3ccp9BQA5NFP0J/AkV//9GfwHHC8nT1tB8dqVX2soc/tgK8e/RKBm4bjjexc8C2EkQ70P/3RLzFUFdn+bT/53Sb4HJ0dtke6h6fklI7+GbAd8pQVD7QQu9kg24csoeGAaXC2ExYHfEIvD0Sc9aMqw/uAD0cfEkgYumvaj0cfwBv5FLB9mKF+qFgagLuKoBcOsqYUnwsZMfL44cmh6WZuJ+mUfuxBa79kZO28X0MnmTf4VO/BoY2X+2A4NK0fovtapbtOsLIio78q4g60/+gJcEw80knR8d10rwC/ax4VB1TtnjMux9c0B6ab/DEgLdEG/zsDn/FEjamaZOdMsmgXYEqzR3XHeFbaxXx/0gb+kRZuoMKmLkF7iDjnjtk94oRGkEICpF/32gGbMlcwe5TG3NcsESjwQfcQ6kBfOmkhaq6JqJ085Zlj4/bBpe7Oleaw095ElyIvyxAIOLmgYDhJIEMSyHKc5SXbYh1o+HuNlU9X9HA/mNHr5dGBsWIaRweyLcfHJi+0aZHKFDY9Bi2cZVGSL4Ibnr+WCb7GUfOgebgAr3oJvOrLUeCQ9nLiNYSmTM54n4ejH7POo3NJ4gDxOtINMO/JjjU0+DAncuM2Df8/BU8AnZ4UldMTiwDBZrMtus+yW132DFMmAdngkBEeZ4ldzORmQXDN+JJf//O/gY/rfX5IJx73iors0zcMTB1rllOKHcX8JDfOAJQ+k0+zNhX7bBqMYecUeoYtIvd48GBLdoOxpc+FSJa7oJFfMOyfvh2HdRwH/I+uePhca+afheRgCagYIcF98qS46Jhm4Qsx1OGgZnZqFi6afs3DS9PvOgY0/ZYXDHBTbeqvebYnX/tpkn2tFrf7Lo2eQTmyb4HwH0quA2W6Ok544kOG3XrRBArjVXQWgjfZB7gk2z772/8HUEsDBAoAAAAIAC4gcVwvWqdlGQMAAFcPAAAPAAAAd29yZC9zdHlsZXMueG1sxVddU6MwFP0rDO9KoVC1Izq12tEZZ9fxY/Y5DaFkDAmbBGv3128CgdYC265l3ac294aTc+49bS7nl+8psd4QF5jR0HaPB7aFKGQRpovQfnmeHZ3alpCARoAwikJ7hYR9eXG+HAu5IkhYKRzfLSjjYE5Udun61tINbEuhUjFOYWgnUmZjxxEwQSkQxyxDVCVjxlMg1ZIvnBTw1zw7gizNgMRzTLBcOd5gMKpg+D4oLI4xRNcM5imisnje4YgoREZFgjNRoS33QVsyHmWcQSSEqkRKSrwUYFrDuH4DKMWQM8FieazEGEYFlHrcHRTfUrIGCP4OwKsAdPkjBq9RDHIihV7yB26WZlV8zBiVwlqOgYAYh/aEY6COX46h2FggIOREYLARSiZU1Pudotu/VPgNkND2BlVkKj7GHHOws00nq1flri3uhZMUlFxlykIZ4GDBQZZoIkXqLgrtZywJKoRTkKLq3DJa0JkDgaLvtMp807003Cl6l23xn7Oi4c5GxdYyg1FTZhnbkFnQ21fCLQL6V+U2VJiE5fapBDLCeN2fmxP/Ktju5NBrSixjB0r0OiV6XyzRa+mi10cXh50Sh/9Mojvzr09OGxL9Fol+DxL9Tol+nxJxscBT4fyhpwdKCTqlBF9gyAPJjzrJj77Aap8l/yQ5o4sGdRPukfe8xCr881my91jIhzqzzVlnrXV6F/c1x24aMFFwUCL+seEqxwmmr82O15m2081lWlPU1365MccPHDOuBqpq79mZydAER+hHguiLwuo0wiAYDafmYsqroB6Jynt3d8Hblc4Yk5RJ9IhixNW82bzaY7PD4vWWvqQLlOJbHEWI7qiEGovlhOBFfZrIVRsE5DiTh/w2KvXPyuXdwqXO7jKb9kQV34SdqrIfXofMTEUZgPr/Rg2SseqkcoWWo45G+qqpF4+5fgUAuWSmOObxxmy11wj5KT/V0rerWm2w9A5rXZ297dRV6N7M1k95/uvo2bDLHKl3qrVJjHvcSiDLpfbN/Rup/25andPje8zmbbF9YV8F/slNY0huacawoxnVN3HxG1BLAwQKAAAAAAAuIHFcAAAAAAAAAAAAAAAACQAAAGRvY1Byb3BzL1BLAwQKAAAACAAuIHFcpRg3LzcBAACDAgAAEQAAAGRvY1Byb3BzL2NvcmUueG1spZLRbsIgFIZfpeG+BVrjDGkx2RavZrJkmi27I3BUskIJMKtvv7Zqp5l3u4T/48t/TlvOD6ZO9uCDbmyFaEZQAlY2SttthdarRTpDSYjCKlE3Fip0hIDmvJSOycbDq28c+KghJJ3HBiZdhXYxOoZxkDswImQdYbtw03gjYnf0W+yE/BJbwDkhU2wgCiWiwL0wdaMRnZVKjkr37etBoCSGGgzYGDDNKP5lI3gT7j4YkivS6Hh0cBe9hCN9CHoE27bN2mJAu/4Ufyxf3oZRU237TUlAvFSSSQ8iNp6vbWqFAVXiq8t+gbUIcdlteqNBPR6vuL9Zj3vY6/4rcToQ47E8D31yg0q6suw02iV5L56eVwvEc5JPU1Kk9GFFJoxQls+yYkI/+2o3jl+pOZf4l/Ui4UPz2x+H/wBQSwMECgAAAAgALiBxXB4p6VpwAgAAZAwAABIAAAB3b3JkL251bWJlcmluZy54bWzNl0tu2zAQhq8icO9QcuQHhChB2yCFi76ApgegJdomwhdISorP0EV37bZn60k6lCz5USCwZQTwxrQ4M9/8FDlD6ObuWfCgpMYyJVMUXYUooDJTOZPLFH1/fBhMUWAdkTnhStIUralFd7c3VSILMacG3AKRJbOlVIbMOThUURxU0SiodBSjAOjSJpXOUrRyTicY22xFBbFXgmVGWbVwV5kSWC0WLKO4UibHwzAK63/aqIxaCzneEVkS2+LE/zSlqQTjQhlBHDyaJRbEPBV6AHRNHJszztwa2OG4xagUFUYmG8SgE+RDkkbQZmgjzDF5m5B7lRWCSldnxIZy0KCkXTG9XUZfGhhXLaR8aRGl4NstiOLz9uDekAqGLfAY+XkTJHij/GViFB6xIx7RRRwjYT9nq0QQJreJe72anZcbjU4DDA8Benne5rw3qtBbGjuPNpNPHcsX/QmszSbvLs2eJ+bbimiKfMshc+sMydznQgR7T7McWhfybScxFLqV8ZNNd3qzcNS8NZQ8pSisKaLgjn2kJeWPa00BVBIOCtdzw/JP3sa9DWHvy0sODgwGH10ncFCGUMsl9Sm9T52vxURNHDTHB9FNzgvOqeuIj/S5M/39/bOb/5C1s5wuNu76q/EDkznY/HSKJkOvJFkRuayb9PU49L5444xr1qH46HXE/zhVfBTHPdQPX0X9rz+nqh9G4x7qry/k4Ayn0x7q4ws5OSC2h/rRhZyc+LpP1Y4v5OSMwj5VO7kU9ZM+VTu9EPXj+LiqxXs34kZVUP821+PBDTrLDxYBlC/wIQC3IN2587ol79i2UXgvrH6WPjne+T64/QdQSwMECgAAAAAALiBxXAAAAAAAAAAAAAAAAAYAAABfcmVscy9QSwMECgAAAAgALiBxXB+jkpbmAAAAzgIAAAsAAABfcmVscy8ucmVsc62Sz0oDMRCHXyXMvTvbVkSkaS9S6E2kPkBIZneDzR8mU61vbyiKVuraQ4+Z/ObLN0MWq0PYqVfi4lPUMG1aUBRtcj72Gp6368kdrJaLJ9oZqYky+FxUbYlFwyCS7xGLHSiY0qRMsd50iYOReuQes7Evpiecte0t8k8GnDLVxmngjZuC2r5nuoSdus5bekh2HyjKmSd+JSrZcE+i4S2xQ/dZbioW8LzN7HKbvyfFQGKcEYM2MU0y124WT+VbqLo81nI5JsaE5tdcDx2EoiM3rmRyHjO6uaaR3RdJ4Z8VHTNfSnjyMZcfUEsDBAoAAAAIAC4gcVzSd/y3bQAAAHsAAAAbAAAAd29yZC9fcmVscy9oZWFkZXIxLnhtbC5yZWxzTYxBDgIhDEWvQrp3ii6MMcPMbg5g9AANViAOhVBiPL4sXf689/68fvNuPtw0FXFwnCwYFl+eSYKDx307XGBd5hvv1IehMVU1IxF1EHuvV0T1kTPpVCrLIK/SMvUxW8BK/k2B8WTtGdv/B+DyA1BLAwQKAAAACAAuIHFc0nf8t20AAAB7AAAAGwAAAHdvcmQvX3JlbHMvZm9vdGVyMS54bWwucmVsc02MQQ4CIQxFr0K6d4oujDHDzG4OYPQADVYgDoVQYjy+LF3+vPf+vH7zbj7cNBVxcJwsGBZfnkmCg8d9O1xgXeYb79SHoTFVNSMRdRB7r1dE9ZEz6VQqyyCv0jL1MVvASv5NgfFk7Rnb/wfg8gNQSwMECgAAAAgALiBxXBI4xDhrAgAALQkAABAAAAB3b3JkL2hlYWRlcjEueG1spZbLjtowFIZfJcoeTDLcGgEjBoaqi0qj0nbvcQyxxjfZDmHmcdpFH6CLkbosL1bnCkOqUQgbH9vx+c5/7OMkk9s9o84OK00En7pet+c6mCMREr6dut++rjpj93Y2SYIoVI5dynWQSDR1I2NkAIBGEWZQdxlBSmixMV0kGBCbDUEYJEKFwO95vawnlUBYa8tdQL6D2i1wrE4TEnP7cCMUg8YO1RYwqJ5i2bF0CQ15JJSYZ8vuDUuMmLqx4kGB6FSCUpcgF1SY0kM1iZu7LAWKGeYmiwgUplaD4Doi8phGW5p9GJWQ3XtJ7Bh1qyPw+tedwVLBxJojsIn8MHdiNFf+PtHrNTiRFFF5NJHwNmaphEHCj4Fbbc3J5nqDywD+OUBurzucj0rE8kgj19E+8aeKxfFFrOKQT1PT14lZR1BWNxDtm8GKukt5fYAiqAzeHxnexZAB+ADGdZDfAmQT9L066uZi1BCkqmqghrV8BrKqaqSGRX1O+k9yw3Ykv04atSPd1EnjdqRaOSXeEJHwshovLwmwniccfdlds8VUYPQzs4LSj67MmgeVmbsws4/CGMGcJNhBOnXTO0XthUoCJKiwnzT/btAf3acT+sWOso6EyGrpu2A2ASUIVOC8KforwY22PlAjYt87c0Ugzej6ZIChNnNN4MlUNOe6Wg9SFMnbhc5spq4UPVqNF+Nlvky/lLNev5xZ6LdzoNJn0u0tE5IKa6x22J19J1tCDz84ItC5lyTEjAh6+L0lCDp/X51VzEN4+HX4KZzPMSeISEidEDtrePhjjV3xhQhnQaESYP2QhjN50Hybstb+/8z+AVBLAwQKAAAACAAuIHFcY42isQACAADeBgAAEAAAAHdvcmQvZm9vdGVyMS54bWzNlUtu2zAQhq8icG/TCtLWEGwHrh0H3RmIewCGGkls+AKHlpKueoheoGfoEXKTnqSU9bCTIoYTb7rhc+abf2b0mFw9KBmV4FAYPSXxcEQi0NykQudT8nWzGozJ1WxSJZl3UTDVmFSWT0nhvU0oRV6AYjhUgjuDJvNDbhQ1WSY40Mq4lF6M4tFuZZ3hgBi4C6ZLhqTFqX9pxoIOl5lxivmwdTlVzN1v7SDQLfPiTkjhHwN79LHDmCnZOp20iEEvqHZJGkHt1Hm4U+I2LkvDtwq030WkDmTQYDQWwu7TeC8tXBYdpDyWRKkk6VsQX57Xg6VjVZj2wFPkp42Tko3y48R4dEJHakTvcYqE5zE7JYoJvQ/8rtIcFDf+8DbAxUuAzc9rzo0zW7unifNoX/R9z9LwJlbb5MPU8DwxtwWzQOoPit0Na1dP33hUJSWTU8LDewGO0NmE9rfN0K5XRnsM1gy5CIWZO8GCuirheLABhn6Ogh0cFXONvT2tUdxI47q4n1bjxXjZXOD37jS+7E4W+PyM9op8XZoELeOhttYBgitDhp+NBC9UdG1FCkoY+fQ7F9xEt6Fmmsnoz4+f0frpVy40i2qab5j/f76ZTBcFq0HtavNoQ+Z3EFJpvIVG7zbw8Epl1vOb65rXmx2hIljmmIcG/IoR6LST2Dw2uzH8sGZ/AVBLAwQKAAAACAAuIHFcrUCsdqQBAAC1CAAAEwAAAFtDb250ZW50X1R5cGVzXS54bWy1VstS4zAQ/BWXr1SssAeKopJwWJYjcIAPUKSxo8XSqKRxgL9nZAdXGeIQHr551N3TLc0cvLh8tnW2hRANumV+WszzDJxCbVy1zB/ur2fn+eVqcf/iIWZMdXGZb4j8hRBRbcDKWKAHx0iJwUriMlTCS/UoKxB/5vMzodAROJpR6pGvFldQyqam7G93nlovc2MT37sqz/4983EXJ9XioOK/h6GkPfiy5jPJ2vqBItWHFZUpB4pUH1bEbXXC7zhQ8dmoSnpfGyWJiWLr9Ls5zHYzKALULSdujI8fDBiNRzm8F6b6m8mwLI0CjaqxLClwXTaR2aCvucnABDVR+2y3vKHBaPiJzxMG7QMqiJGX29ZFj1hpXPcydzLQjbTcWyS66Cm7606SI9JLDXF/gA77kf3bIigMMGNjD4HMHj8OeMdoFIn4mxdWTSS0x1m31N80h7RNGvRR9tx60km7xq4h8Pf+YffwpCFKRHJIYxvXw9PuPBDx19jW79BJIyi0CRiJ8IZOPApuJNc1jI1iB08aYgNSQ9ifoMNOJ9/HMf8O6/1F+x+yegVQSwMECgAAAAgALiBxXFh52yKSAAAA5AAAABMAAABkb2NQcm9wcy9jdXN0b20ueG1snc5BCsIwEIXhq5TZ21QXIqVpN+LaRXUf0mkbaGZCJi329kYED+Dy8cPHa7qXX4oNozgmDceyggLJ8uBo0vDob4cLFJIMDWZhQg07CnRtc48cMCaHUmSARMOcUqiVEjujN1LmTLmMHL1JecZJ8Tg6i1e2q0dK6lRVZ2VXSewP4cfB16u39C85sP28k2e/h+yp9g1QSwMECgAAAAgALiBxXOL8ndqTAAAA5gAAABAAAABkb2NQcm9wcy9hcHAueG1snc5BCsIwEIXhq4TsbaoLkdK0G3HtoroPybQNNDMhE0t7eyOCB3D5+OHjtf0WFrFCYk+o5bGqpQC05DxOWj6G2+EiBWeDziyEoOUOLPuuvSeKkLIHFgVA1nLOOTZKsZ0hGK5KxlJGSsHkMtOkaBy9hSvZVwDM6lTXZwVbBnTgDvEHyq/YrPlf1JH9/OPnsMfiqe4NUEsDBAoAAAAIAC4gcVzP4efCwgEAAJwGAAASAAAAd29yZC9mb290bm90ZXMueG1s1ZTBbuMgEIZfxeKeYEftamXF6WGrrnqrmt0HoATHqMAgwPbm7XdsE5ztVlHanHoxxsz/zT+MYX33R6usE85LMBUpljnJhOGwk2Zfkd+/Hhbfyd1m3Zc1QDAQhM9QYHzZW16RJgRbUup5IzTzSy25Aw91WHLQFOpackF7cDu6yot8fLMOuPAe6T+Y6ZgnEaf/p4EVBhdrcJoFnLo91cy9tnaBdMuCfJFKhgOy829HDFSkdaaMiEUyNEjKyVAcjgp3Sd5Jcg+81cKEMSN1QqEHML6Rdi7jszRcbI6Q7lwRnVYktaC4ua4H9471OMzAS+zvJpFWk/PzxCK/oCMDIikusfBvzqMTzaSZE39qa042t7j9GGD1FmD31zXnp4PWzjR5He3RvCaWER9ixSafluavM7NtmMUTqHn5uDfg2ItCR9iyDHc9G35rcnrlZH0ZDhYjvLDMsQCO4Ce5q8iiGAPt+Hhyw+At45gBA1gdBJ7ufAhWcqh5dZMmz+2QkrUBCN2saZJPj/i+DQc1ZO+YqshDdPMsauHwihRRGIPreTl+T7hkOy3Q0TOdVe+Wy8EEadrxltm+LT3/CpW/W8G5XTiZ+M1fUEsDBAoAAAAIAC4gcVzSd/y3bQAAAHsAAAAdAAAAd29yZC9fcmVscy9mb290bm90ZXMueG1sLnJlbHNNjEEOAiEMRa9CuneKLowxw8xuDmD0AA1WIA6FUGI8vixd/rz3/rx+824+3DQVcXCcLBgWX55JgoPHfTtcYF3mG+/Uh6ExVTUjEXUQe69XRPWRM+lUKssgr9Iy9TFbwEr+TYHxZO0Z2/8H4PIDUEsDBAoAAAAIAC4gcVwojpbgoAEAAHMFAAARAAAAd29yZC9zZXR0aW5ncy54bWyllMFu3CAQhl/F4r6LHTVVZcWJ2kZtc6h6SPsAE8A2WhgQYLv79h3b63WSStFu9gTW8H/zM2Pm5u6vNVmvQtQOK1Zsc5YpFE5qbCr25/e3zSeWxQQowThUFduryO5ub4YyqpToUMwIgLEcvKhYm5IvOY+iVRbi1moRXHR12gpnuatrLRQfXJD8Ki/yaeeDEypGAn0F7CGyA87+T3NeIQVrFywk+gwNtxB2nd8Q3UPST9rotCd2/nHBuIp1AcsDYnM0NErK2dBhWRThlLyz5N6JzipMU0YelCEPDmOr/XqN99Io2C6Q/q1L9NawYwuKD5f14D7AQMsKPMW+nEXWzM7fJhb5CR0ZEUfFKRZe5lycWNC4Jn5XaZ4Vt7g+D3D1GuCby5rzPbjOrzR9Ge0Bd0fW+K7PYB2a/Pxq8TIzjy14eoFWlA8NugBPhhxRyzKqejb+1mycOFJHb2D/BcSuoVqgnGR8DKle4WeUv6T8oUDSNMuGsgdTsRpMVGw6M0+Jdfc4D7DlZHHNaNuFM+o6ChAseX0xgX46OaXka06+zsvbf1BLAwQKAAAACAAuIHFci4Y5xMUBAADGCAAAEQAAAHdvcmQvY29tbWVudHMueG1spdTdcuIgGAbgW3E4V5JYUzfTtCed7fR42wuggMI0/Ayg0btfUiVJl51OgkfqJN+Tl9fAw9NJNIsjNZYrWYN8lYEFlVgRLvc1eH/7vdyChXVIEtQoSWtwphY8PT60FVZCUOnswgPSVvhUA+acriC0mFGB7EpwbJRVO7fy90K123FMITGo9TYssvwOYoaMoyfQG/lsZAN/wW0MFQlQnsEij6n1bKqEXaoIukuCfKpI2qRJ/1lcmSYVsXSfJq1jaZsmRa+TwBGkNJX+4k4ZgZz/afZQIPN50EsPa+T4B2+4O3szKwODuPxMSOSnekGsyWzhHgpFaLMmQVE1OBhZXeeX/XwXvbrMXz/ChJmy/svIs8KHbjt/rRwa2vgulLSMa9vXmar5iywgx58WcRRNuK/V+cTt0ipDur6yr2/aKEyt9R0+X6ocwCnxr/2L5pL8ZzHPJvwjHdFPTInw/ZkhifBv4fDgpGpG5eYTD5AAFBFQYjrxwA/G9mpAPOzQzuETt0Zwyt7hZOSkhRkBljjCZilF6BV2s8ghhiwbi3ReqE3PncWoI72/bSO8GHXQg8Zv016HY62V8xaYlf+2ru1tYf4wpCmAj38BUEsDBAoAAAAIAC4gcVzSd/y3bQAAAHsAAAAcAAAAd29yZC9fcmVscy9jb21tZW50cy54bWwucmVsc02MQQ4CIQxFr0K6d4oujDHDzG4OYPQADVYgDoVQYjy+LF3+vPf+vH7zbj7cNBVxcJwsGBZfnkmCg8d9O1xgXeYb79SHoTFVNSMRdRB7r1dE9ZEz6VQqyyCv0jL1MVvASv5NgfFk7Rnb/wfg8gNQSwMECgAAAAgALiBxXGPtXtYdAQAAQwMAABIAAAB3b3JkL2ZvbnRUYWJsZS54bWyd0d1uwiAUB/BXIdwrtZmNaazeLEt2vz0AArVEDqfh4NS3H622a+KN3RUQ8v/lfGz3V3DsxwSy6Cu+WmacGa9QW3+s+PfXx2LDGUXptXToTcVvhvh+t72UNfpILKU9laAq3sTYlkKQagxIWmJrfPqsMYCM6RmOAmQ4nduFQmhltAfrbLyJPMsK/mDCKwrWtVXmHdUZjI99XgTjkoieGtvSoF1e0S4YdBtQGaLUMbi7B9L6kVm9PUFgVUDCOi5TM4+KeirFV1l/A/cHrOcB+RNQKHOdZ2wehkjJqWP1PKcYHasnzv+KmQCko25mKfkwV9FlZZSNpGYqmnlFrUfuBt2MQJWfR49BHlyS0tZZWhzrYXafXHew+zLY0AIXu19QSwMECgAAAAgALiBxXNJ3/LdtAAAAewAAAB0AAAB3b3JkL19yZWxzL2ZvbnRUYWJsZS54bWwucmVsc02MQQ4CIQxFr0K6d4oujDHDzG4OYPQADVYgDoVQYjy+LF3+vPf+vH7zbj7cNBVxcJwsGBZfnkmCg8d9O1xgXeYb79SHoTFVNSMRdRB7r1dE9ZEz6VQqyyCv0jL1MVvASv5NgfFk7Rnb/wfg8gNQSwECFAAKAAAAAAAuIHFcAAAAAAAAAAAAAAAABQAAAAAAAAAAABAAAAAAAAAAd29yZC9QSwECFAAKAAAAAAAuIHFcAAAAAAAAAAAAAAAACwAAAAAAAAAAABAAAAAjAAAAd29yZC9fcmVscy9QSwECFAAKAAAACAAuIHFcOupc7UsBAABqBQAAHAAAAAAAAAAAAAAAAABMAAAAd29yZC9fcmVscy9kb2N1bWVudC54bWwucmVsc1BLAQIUAAoAAAAIAC4gcVw+buFaUR8AAJbvAgARAAAAAAAAAAAAAAAAANEBAAB3b3JkL2RvY3VtZW50LnhtbFBLAQIUAAoAAAAIAC4gcVwvWqdlGQMAAFcPAAAPAAAAAAAAAAAAAAAAAFEhAAB3b3JkL3N0eWxlcy54bWxQSwECFAAKAAAAAAAuIHFcAAAAAAAAAAAAAAAACQAAAAAAAAAAABAAAACXJAAAZG9jUHJvcHMvUEsBAhQACgAAAAgALiBxXKUYNy83AQAAgwIAABEAAAAAAAAAAAAAAAAAviQAAGRvY1Byb3BzL2NvcmUueG1sUEsBAhQACgAAAAgALiBxXB4p6VpwAgAAZAwAABIAAAAAAAAAAAAAAAAAJCYAAHdvcmQvbnVtYmVyaW5nLnhtbFBLAQIUAAoAAAAAAC4gcVwAAAAAAAAAAAAAAAAGAAAAAAAAAAAAEAAAAMQoAABfcmVscy9QSwECFAAKAAAACAAuIHFcH6OSluYAAADOAgAACwAAAAAAAAAAAAAAAADoKAAAX3JlbHMvLnJlbHNQSwECFAAKAAAACAAuIHFc0nf8t20AAAB7AAAAGwAAAAAAAAAAAAAAAAD3KQAAd29yZC9fcmVscy9oZWFkZXIxLnhtbC5yZWxzUEsBAhQACgAAAAgALiBxXNJ3/LdtAAAAewAAABsAAAAAAAAAAAAAAAAAnSoAAHdvcmQvX3JlbHMvZm9vdGVyMS54bWwucmVsc1BLAQIUAAoAAAAIAC4gcVwSOMQ4awIAAC0JAAAQAAAAAAAAAAAAAAAAAEMrAAB3b3JkL2hlYWRlcjEueG1sUEsBAhQACgAAAAgALiBxXGONorEAAgAA3gYAABAAAAAAAAAAAAAAAAAA3C0AAHdvcmQvZm9vdGVyMS54bWxQSwECFAAKAAAACAAuIHFcrUCsdqQBAAC1CAAAEwAAAAAAAAAAAAAAAAAKMAAAW0NvbnRlbnRfVHlwZXNdLnhtbFBLAQIUAAoAAAAIAC4gcVxYedsikgAAAOQAAAATAAAAAAAAAAAAAAAAAN8xAABkb2NQcm9wcy9jdXN0b20ueG1sUEsBAhQACgAAAAgALiBxXOL8ndqTAAAA5gAAABAAAAAAAAAAAAAAAAAAojIAAGRvY1Byb3BzL2FwcC54bWxQSwECFAAKAAAACAAuIHFcz+HnwsIBAACcBgAAEgAAAAAAAAAAAAAAAABjMwAAd29yZC9mb290bm90ZXMueG1sUEsBAhQACgAAAAgALiBxXNJ3/LdtAAAAewAAAB0AAAAAAAAAAAAAAAAAVTUAAHdvcmQvX3JlbHMvZm9vdG5vdGVzLnhtbC5yZWxzUEsBAhQACgAAAAgALiBxXCiOluCgAQAAcwUAABEAAAAAAAAAAAAAAAAA/TUAAHdvcmQvc2V0dGluZ3MueG1sUEsBAhQACgAAAAgALiBxXIuGOcTFAQAAxggAABEAAAAAAAAAAAAAAAAAzDcAAHdvcmQvY29tbWVudHMueG1sUEsBAhQACgAAAAgALiBxXNJ3/LdtAAAAewAAABwAAAAAAAAAAAAAAAAAwDkAAHdvcmQvX3JlbHMvY29tbWVudHMueG1sLnJlbHNQSwECFAAKAAAACAAuIHFcY+1e1h0BAABDAwAAEgAAAAAAAAAAAAAAAABnOgAAd29yZC9mb250VGFibGUueG1sUEsBAhQACgAAAAgALiBxXNJ3/LdtAAAAewAAAB0AAAAAAAAAAAAAAAAAtDsAAHdvcmQvX3JlbHMvZm9udFRhYmxlLnhtbC5yZWxzUEsFBgAAAAAYABgAAQYAAFw8AAAAAA==";
+
+function BoletimTab() {
+  const prioridadeCor = {"ALTA": "#ef4444", "MODERADA": "#f59e0b", "BAIXA": "#22c55e"};
+  const prioridadeBg = {"ALTA": "rgba(239,68,68,0.15)", "MODERADA": "rgba(245,158,11,0.15)", "BAIXA": "rgba(34,197,94,0.15)"};
+  const zonaCor = {"sucesso": "#22c55e", "seguranca": "#3b82f6", "alerta": "#f59e0b", "epidemico": "#f97316", "emergencia": "#ef4444"};
+  const zonaNome = {"sucesso": "Sucesso", "seguranca": "Segurança", "alerta": "Alerta", "epidemico": "Epidêmico", "emergencia": "Emergência"};
+  const [expandido, setExpandido] = useState(null);
+
+  // ── Helpers de calendário epidemiológico (regra ISO/SINAN/MS) ──
+  // SE01 = semana cujo domingo contém 04/jan (domingo=dia 1, sábado=dia 7)
+  // Uma SE é COMPLETA apenas após seu sábado de encerramento ter passado.
+  // Retorna: { seEmCurso, seUltimaCompleta, diasDecorridos, seStartDate, seEndDate }
+  const calcularSeEpi = (dataRef) => {
+    const hoje = dataRef || new Date();
+    const ano = hoje.getFullYear();
+    const jan4 = new Date(ano, 0, 4);
+    // jan4.getDay(): domingo=0, segunda=1, ..., sábado=6
+    // Domingo da semana de jan4 = jan4 - jan4.getDay() dias
+    const se1 = new Date(jan4.getTime() - jan4.getDay() * 86400000);
+    const diasDesdeSe1 = Math.floor((hoje - se1) / 86400000);
+    const seEmCurso = Math.floor(diasDesdeSe1 / 7) + 1;
+    const diasDecorridos = (diasDesdeSe1 % 7) + 1; // 1=domingo, 7=sábado
+    const seStart = new Date(se1.getTime() + (seEmCurso - 1) * 7 * 86400000);
+    const seEnd = new Date(seStart.getTime() + 6 * 86400000);
+    // SE completa: hoje > sábado da SE em curso
+    const seUltimaCompleta = hoje > seEnd ? seEmCurso : seEmCurso - 1;
+    return { seEmCurso, seUltimaCompleta, diasDecorridos, seStart, seEnd, ano };
+  };
+  // Cache do resultado para uso em toda a renderização
+  const seCal = calcularSeEpi();
+  // SE para ANÁLISE = min(se_atual do pipeline, última SE completa pelo calendário)
+  // Garante que SEs parciais nunca contaminem classificações/estatísticas.
+  const sePipeline = DATA.metadata?.se_atual || 52;
+  const seAnalise = Math.min(sePipeline, seCal.seUltimaCompleta);
+  // SE em curso (parcial) — só renderizada visualmente como "em curso", sem classificar
+  const sePartialExists = sePipeline > seCal.seUltimaCompleta;
+  const sePartial = sePartialExists ? sePipeline : null;
+
+  const gerarBoletimPDF = () => {
+    const jan4_=new Date(new Date().getFullYear(),0,4);
+    const se1_=new Date(jan4_.getTime()-jan4_.getDay()*86400000);
+    const hoje_=new Date();
+    const seN_=Math.floor((hoje_-se1_)/(7*86400000))+1;
+    const seEnd_=new Date(se1_.getTime()+(seN_-1)*7*86400000+6*86400000);
+    const seC_=seEnd_<hoje_?seN_:seN_-1;
+    const seStart_=new Date(se1_.getTime()+(seC_-1)*7*86400000);
+    const seEnd2_=new Date(seStart_.getTime()+6*86400000);
+    const pad_=n=>String(n).padStart(2,"0");
+    const fmtDate_=d=>`${pad_(d.getDate())}/${pad_(d.getMonth()+1)}/${d.getFullYear()}`;
+    const ano_=seStart_.getFullYear();const ss_=pad_(seC_);
+    const zonaRank_={emergencia:4,epidemico:3,alerta:2,seguranca:1,sucesso:0};
+    const zonaCor_={emergencia:"#ef4444",epidemico:"#f97316",alerta:"#f59e0b",seguranca:"#3b82f6",sucesso:"#22c55e"};
+    const zonaNome_={emergencia:"Emergência",epidemico:"Epidêmico",alerta:"Alerta",seguranca:"Segurança",sucesso:"Sucesso"};
+    const zonaEmoji_={emergencia:"🔴",epidemico:"🟠",alerta:"🟡",seguranca:"🔵",sucesso:"🟢"};
+    const enriched_=BOLETIM_DATA.map(item=>{
+      const ch=DATA.channels[item.name];const seN=item.se_2026||0;
+      let zonas_seq=[],obs_ytd=0,p50_ytd=null;
+      if(ch&&ch.classifications&&ch.classifications["2026"])zonas_seq=ch.classifications["2026"].slice(0,seN);
+      if(ch&&ch.raw)obs_ytd=ch.raw.filter(r=>r.se<=seN).reduce((s,r)=>s+(r.c2026||0),0);
+      if(ch&&ch.channels&&ch.channels["2025"])p50_ytd=ch.channels["2025"].slice(0,seN).reduce((s,row)=>s+(row[2]||0),0);
+      const ult2=zonas_seq.slice(-2);
+      const status=ult2.length===0?"sucesso":["sucesso","seguranca","alerta","epidemico","emergencia"][Math.max(...ult2.map(z=>zonaRank_[z]||0))];
+      const var_pct=p50_ytd>0?((obs_ytd-p50_ytd)/p50_ytd*100):null;
+      return{...item,status_fiocruz:status,obs_ytd,p50_ytd,var_pct,zonas_seq,seN};
+    }).sort((a,b)=>(zonaRank_[b.status_fiocruz]||0)-(zonaRank_[a.status_fiocruz]||0));
+    const emergencia_=enriched_.filter(d=>d.status_fiocruz==="emergencia");
+    const epidemico_=enriched_.filter(d=>d.status_fiocruz==="epidemico");
+    const alerta_=enriched_.filter(d=>d.status_fiocruz==="alerta");
+    const ok_=enriched_.filter(d=>["sucesso","seguranca"].includes(d.status_fiocruz));
+    const limpaName=n=>n.replace("SINAN: ","").replace(/^[IVX]+ - /,"").trim();
+    const rowH=item=>{
+      const cor=zonaCor_[item.status_fiocruz]||"#6b7280";
+      const vS=item.var_pct!=null?`<span style="color:${item.var_pct>=10?"#dc2626":item.var_pct<=-10?"#16a34a":"#6b7280"};font-weight:700">${item.var_pct>0?"+":""}${item.var_pct.toFixed(1)}%</span>`:"—";
+      const sp=item.zonas_seq.slice(-4).map(z=>zonaEmoji_[z]||"·").join(" ");
+      return `<tr style="border-bottom:1px solid #e5e7eb"><td style="padding:7px 8px;font-size:12px;font-weight:600">${limpaName(item.name)}</td>
+        <td style="padding:7px 8px"><span style="background:${cor}22;color:${cor};padding:3px 9px;border-radius:5px;font-size:11px;font-weight:700;border:1px solid ${cor}44">${zonaNome_[item.status_fiocruz]}</span></td>
+        <td style="padding:7px 8px;text-align:right;font-family:monospace;font-size:12px">${item.obs_ytd.toLocaleString("pt-BR")}</td>
+        <td style="padding:7px 8px;text-align:right;font-size:12px">${vS}</td>
+        <td style="padding:7px 8px;text-align:center;font-size:15px;letter-spacing:3px">${sp}</td>
+        <td style="padding:7px 8px;font-size:11px;color:#6b7280">${item.acao||"Monitoramento de rotina."}</td></tr>`;};
+    const tH=`<table style="width:100%;border-collapse:collapse;margin-top:6px"><thead><tr style="background:#f1f5f9;border-bottom:2px solid #cbd5e1">
+      <th style="padding:7px 8px;text-align:left;font-size:11px;color:#475569;font-weight:700">Agravo</th>
+      <th style="padding:7px 8px;text-align:left;font-size:11px;color:#475569;font-weight:700">Status</th>
+      <th style="padding:7px 8px;text-align:right;font-size:11px;color:#475569;font-weight:700">Atend. 2026</th>
+      <th style="padding:7px 8px;text-align:right;font-size:11px;color:#475569;font-weight:700">Var% vs esperado</th>
+      <th style="padding:7px 8px;text-align:center;font-size:11px;color:#475569;font-weight:700">Últ 4 SEs</th>
+      <th style="padding:7px 8px;text-align:left;font-size:11px;color:#475569;font-weight:700">Recomendação</th>
+    </tr></thead><tbody>`;
+    const sec=(title,cor,items)=>items.length===0?"":`<div style="margin-bottom:16px;break-inside:avoid">
+      <div style="font-size:13px;font-weight:700;color:${cor};padding:6px 10px;background:${cor}11;border-left:4px solid ${cor};border-radius:0 4px 4px 0;margin-bottom:4px">${title} <span style="font-size:11px;opacity:0.7">(${items.length})</span></div>
+      ${tH}${items.map(rowH).join("")}</tbody></table></div>`;
+    const win=window.open("","_blank");
+    win.document.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">
+      <title>Boletim VE FMRC SE${ss_} ${ano_}</title>
+      <style>@page{size:A4;margin:16mm 14mm}@media print{.np{display:none!important}body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+      body{font-family:"Segoe UI",Arial,sans-serif;color:#1f2937;font-size:13px;line-height:1.5;margin:0}
+      h1{margin:0;font-size:20px;color:#1e3a5f}h2{font-size:12px;font-weight:700;color:#374151;margin:14px 0 5px;padding-bottom:4px;border-bottom:2px solid #e5e7eb;text-transform:uppercase;letter-spacing:.5px}</style>
+    </head><body>
+      <div class="np" style="background:#1e3a5f;color:#fff;padding:10px 20px;display:flex;align-items:center;gap:16px;position:sticky;top:0;z-index:99">
+        <span style="font-weight:600;font-size:13px">Boletim VE/FMRC · SE ${ss_}/${ano_} · ${fmtDate_(hoje_)}</span>
+        <button onclick="window.print()" style="background:#6366f1;color:#fff;border:none;padding:7px 18px;border-radius:6px;cursor:pointer;font-size:13px;font-weight:700">🖨 Imprimir / Salvar PDF</button>
+        <span style="font-size:11px;opacity:.7">Use "Salvar como PDF" para distribuir por e-mail</span>
+      </div>
+      <div style="max-width:740px;margin:0 auto;padding:20px 16px">
+        <div style="border-bottom:3px solid #1e3a5f;padding-bottom:10px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:flex-start">
+          <div>
+            <div style="font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:1px;margin-bottom:3px">Vigilância Epidemiológica · Fundação Municipal de Saúde · Rio Claro/SP</div>
+            <h1>Boletim Sindrômico de Atendimentos nas UPAs</h1>
+            <div style="font-size:12px;color:#6b7280;margin-top:3px">SE ${ss_}/${ano_} · ${fmtDate_(seStart_)} a ${fmtDate_(seEnd2_)} · Hipóteses diagnósticas UPAs</div>
+          </div>
+          <div style="text-align:right;font-size:10px;color:#9ca3af">Gerado: ${hoje_.toLocaleDateString("pt-BR")}<br><span style="font-size:9px">ekokubun.github.io/canal-endemico</span></div>
+        </div>
+        <h2>Quadro de situação — SE ${ss_}/${ano_}</h2>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:18px">
+          ${[
+            {n:emergencia_.length+epidemico_.length,label:"Emergência / Epidêmico",cor:"#ef4444",bg:"#fef2f2",border:"#ef4444",names:[...emergencia_,...epidemico_].map(d=>limpaName(d.name)).join(", ")},
+            {n:alerta_.length,label:"Alerta",cor:"#d97706",bg:"#fffbeb",border:"#f59e0b",names:alerta_.map(d=>limpaName(d.name)).join(", ")},
+            {n:ok_.length,label:"Controlado",cor:"#16a34a",bg:"#f0fdf4",border:"#22c55e",names:"Dentro do esperado"},
+          ].map(c=>`<div style="background:${c.bg};border:2px solid ${c.border};border-radius:8px;padding:12px;text-align:center">
+            <div style="font-size:36px;font-weight:700;color:${c.cor};line-height:1">${c.n}</div>
+            <div style="font-size:11px;font-weight:700;color:${c.cor};text-transform:uppercase;margin:3px 0 5px">${c.label}</div>
+            <div style="font-size:9.5px;color:#6b7280">${c.names||"—"}</div>
+          </div>`).join("")}
+        </div>
+        ${sec("🔴 EMERGÊNCIA — Ação imediata necessária","#ef4444",emergencia_)}
+        ${sec("🟠 EPIDÊMICO — Mobilização reforçada","#f97316",epidemico_)}
+        ${sec("🟡 ALERTA — Atenção aumentada","#d97706",alerta_)}
+        ${sec("🟢 CONTROLADO — Monitoramento de rotina","#16a34a",ok_)}
+        <div style="margin-top:16px;padding:9px 12px;background:#f8fafc;border-left:3px solid #94a3b8;font-size:10px;color:#6b7280;line-height:1.6">
+          <b>Fonte e método:</b> Atendimentos por hipótese diagnóstica nas UPAs da FMS · Classificação por probabilidade de ocorrência esperada · Padrão histórico 2023–2025</div>
+        <div style="margin-top:14px;padding-top:8px;border-top:1px solid #e5e7eb;display:flex;justify-content:space-between;font-size:9px;color:#9ca3af">
+          <span>FMS Rio Claro/SP · Vigilância Epidemiológica · EpiKanalis / EpiKinesis</span>
+          <span>${hoje_.toLocaleDateString("pt-BR",{weekday:"long",day:"2-digit",month:"long",year:"numeric"})}</span>
+        </div>
+      </div></body></html>`);
+    win.document.close();
+  };
+
+  const cardStyle = {
+    background: "rgba(255,255,255,0.03)",
+    borderRadius: 14, padding: 20,
+    border: "1px solid rgba(255,255,255,0.06)",
+    marginBottom: 16,
+  };
+
+  const sectionTitle = (text) => (
+    <div style={{ fontSize: 16, fontWeight: 700, color: "#e2e8f0", marginBottom: 12,
+      borderBottom: "2px solid rgba(129,140,248,0.3)", paddingBottom: 8 }}>
+      {text}
+    </div>
+  );
+
+  const ZonaBar = ({cls, label, totalSEs, seCompleta}) => {
+    if (!cls) return null;
+    // Calcular seCompleta se não passada (regra SINAN/MS)
+    if (!seCompleta) {
+      const jan4 = new Date(new Date().getFullYear(), 0, 4);
+      const se1 = new Date(jan4.getTime() - jan4.getDay()*86400000);
+      const hoje = new Date();
+      const seN = Math.floor((hoje - se1)/(7*86400000)) + 1;
+      const seEnd = new Date(se1.getTime() + (seN-1)*7*86400000 + 6*86400000);
+      seCompleta = seEnd < hoje ? seN : seN - 1;
+    }
+    // Semanas observadas = min(total classificado, seCompleta)
+    // Semanas futuras = totalSEs - seCompleta (quando totalSEs fornecido)
+    const sesFuturas = totalSEs ? Math.max(0, totalSEs - seCompleta) : 0;
+    // Total de SEs observadas = seCompleta (ou total classificado se não tiver totalSEs)
+    const obsTotal = totalSEs ? seCompleta : Object.values(cls).reduce((a,b)=>a+b,0);
+    if (obsTotal === 0 && sesFuturas === 0) return null;
+    const zones = ["sucesso","seguranca","alerta","epidemico","emergencia"];
+    return (
+      <div style={{ marginBottom: 6 }}>
+        {label && <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 4 }}>{label}</div>}
+        <div style={{ display: "flex", height: 22, borderRadius: 6, overflow: "hidden",
+          border: "1px solid rgba(255,255,255,0.08)" }}>
+          {zones.map(z => {
+            const n = cls[z] || 0;
+            if (n === 0) return null;
+            const pct = (n / (totalSEs || obsTotal)) * 100;
+            return <div key={z} title={`${zonaNome[z]}: ${n} SE`} style={{
+              width: pct + "%", background: zonaCor[z], display: "flex", alignItems: "center",
+              justifyContent: "center", fontSize: 9, fontWeight: 700, color: "#fff",
+              minWidth: pct > 8 ? "auto" : 0,
+            }}>{pct > 12 ? n : ""}</div>;
+          })}
+          {sesFuturas > 0 && (
+            <div title={`Futuras: ${sesFuturas} SE ainda não ocorridas`} style={{
+              width: ((sesFuturas / totalSEs) * 100) + "%",
+              background: "rgba(255,255,255,0.06)", display: "flex", alignItems: "center",
+              justifyContent: "center", fontSize: 9, color: "rgba(255,255,255,0.3)",
+            }}>{((sesFuturas / totalSEs) * 100) > 10 ? sesFuturas : ""}</div>
+          )}
+        </div>
+        <div style={{ display: "flex", gap: 10, marginTop: 4, flexWrap: "wrap" }}>
+          {zones.map(z => cls[z] > 0 ? (
+            <span key={z} style={{ fontSize: 10, color: zonaCor[z] }}>
+              {zonaNome[z]}: {cls[z]}
+            </span>
+          ) : null)}
+          {sesFuturas > 0 && <span style={{ fontSize: 10, color: "rgba(255,255,255,0.3)" }}>Futuras: {sesFuturas}</span>}
+        </div>
+      </div>
+    );
+  };
+
+  const altaItems = BOLETIM_DATA.filter(d => d.prioridade === "ALTA");
+  const modItems = BOLETIM_DATA.filter(d => d.prioridade === "MODERADA");
+  const baixaItems = BOLETIM_DATA.filter(d => d.prioridade === "BAIXA");
+
+  // Semáforo calculado a partir dos canais reais
+  const semaforo = { emergencia: [], epidemico: [], alerta: [], seguranca: [], sucesso: [] };
+  BOLETIM_DATA.forEach(item => {
+    const ch = DATA.channels[item.name];
+    if (!ch || !ch.classifications || !ch.classifications["2026"]) return;
+    const zonas = ch.classifications["2026"].slice(0, seCal.seUltimaCompleta);
+    const ult2 = zonas.slice(-2);
+    const zonaRankS = {sucesso:0,seguranca:1,alerta:2,epidemico:3,emergencia:4};
+    const status = ult2.length === 0 ? "sucesso"
+      : ["sucesso","seguranca","alerta","epidemico","emergencia"][Math.max(...ult2.map(z => zonaRankS[z]||0))];
+    if (semaforo[status]) semaforo[status].push(item.name.replace("SINAN: ","").replace(/^[IVX]+ - /,"").trim());
+  });
+
+  return (
+    <div style={{ maxWidth: 960, margin: "0 auto" }}>
+      {/* ═══ Hero Semáforo ═══ */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 20 }}>
+        {[
+          { label: "Emergência / Epidêmico", cor: "#ef4444",
+            items: [...semaforo.emergencia, ...semaforo.epidemico],
+            bg: "rgba(239,68,68,0.08)", border: "rgba(239,68,68,0.3)" },
+          { label: "Alerta", cor: "#f59e0b", items: semaforo.alerta,
+            bg: "rgba(245,158,11,0.08)", border: "rgba(245,158,11,0.3)" },
+          { label: "Controlado", cor: "#22c55e",
+            items: [...semaforo.sucesso, ...semaforo.seguranca],
+            bg: "rgba(34,197,94,0.08)", border: "rgba(34,197,94,0.3)" },
+        ].map(({ label, cor, items, bg, border }) => (
+          <div key={label} style={{ background: bg, border: `1px solid ${border}`,
+            borderRadius: 14, padding: "18px 16px", textAlign: "center" }}>
+            <div style={{ fontSize: 44, fontWeight: 700, color: cor, lineHeight: 1 }}>
+              {items.length}
+            </div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: cor,
+              textTransform: "uppercase", letterSpacing: 0.8, margin: "5px 0 8px" }}>
+              {label}
+            </div>
+            <div style={{ fontSize: 10, color: "#94a3b8", lineHeight: 1.6 }}>
+              {items.length === 0 ? "—"
+                : items.slice(0,3).join(", ") + (items.length > 3 ? ` +${items.length-3} mais` : "")}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* ═══ Cabeçalho institucional ═══ */}
+      <div style={{ ...cardStyle, textAlign: "center", background: "linear-gradient(135deg, rgba(99,102,241,0.1), rgba(168,85,247,0.1))" }}>
+        <div style={{ fontSize: 11, color: "#818cf8", textTransform: "uppercase", letterSpacing: 2, marginBottom: 8 }}>
+          Vigilância Epidemiológica · Fundação Municipal de Saúde
+        </div>
+        <h2 style={{ fontSize: 24, fontWeight: 700, margin: "0 0 4px",
+          background: "linear-gradient(90deg, #818cf8, #c084fc, #f472b6)",
+          WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+          Boletim Sindrômico de Atendimentos nas UPAs
+        </h2>
+        <p style={{ color: "#94a3b8", fontSize: 13, margin: "0 0 4px" }}>
+          Tendências de Atendimentos — Hipóteses Diagnósticas nas UPAs · Rio Claro/SP
+        </p>
+        <p style={{ color: "#64748b", fontSize: 12, margin: "0 0 16px" }}>
+          {(() => {
+            // Usa o helper calcularSeEpi() (regra ISO/SINAN/MS) e seAnalise (SE completa)
+            // já calculados no escopo do componente. Evita o bug de timezone que ocorria
+            // com new Date("2025-12-29") interpretado como UTC midnight (deslocava 1 SE).
+            const ano = seCal.ano;
+            // Reconstruir intervalo da SE de análise a partir do seCal (que tem seStart/seEnd da SE em curso)
+            const seDiff = seCal.seEmCurso - seAnalise;
+            const seStart = new Date(seCal.seStart.getTime() - seDiff * 7 * 86400000);
+            const seEnd = new Date(seStart.getTime() + 6 * 86400000);
+            const fmt = (d, showYear) => d.toLocaleDateString("pt-BR", {
+              day: "numeric", month: "long", ...(showYear ? {year:"numeric"} : {})
+            });
+            return seAnalise > 0
+              ? `SE ${seAnalise}/${ano} — ${fmt(seStart)} a ${fmt(seEnd, true)} · Dados de atendimentos por hipótese diagnóstica · Canais epidemiológicos: Sistema de Monitoramento Sindrômico`
+              : `Dados de atendimentos por hipótese diagnóstica · Canais epidemiológicos: Sistema de Monitoramento Sindrômico`;
+          })()}
+        </p>
+        {/* Botão de download desabilitado temporariamente —
+            o DOCX_B64 embarcado contém dados antigos (SE9-11/2026) e o workflow
+            "Boletim Sindrômico de Atendimentos nas UPAs" tem bug pendente nos args --boletim --se-num.
+            Será reativado quando a geração dinâmica do .docx for restaurada. */}
+        <button onClick={gerarBoletimPDF} style={{
+          padding: "12px 32px", borderRadius: 10, border: "none", cursor: "pointer",
+          background: "linear-gradient(90deg, #6366f1, #8b5cf6)",
+          color: "#fff", fontSize: 14, fontWeight: 700, fontFamily: "DM Sans, sans-serif",
+          display: "inline-flex", alignItems: "center", gap: 10,
+          boxShadow: "0 4px 14px rgba(99,102,241,0.4)",
+        }}>
+          <span style={{ fontSize: 20 }}>📄</span>
+          Baixar Boletim para Distribuição
+        </button>
+
+        {/* Banner de transparência: pipeline vs calendário vs análise */}
+        {(() => {
+          const m = DATA.metadata || {};
+          const gen = m.generated ? new Date(m.generated) : null;
+          const ano = m.ano_atual || seCal.ano;
+          // Status de sincronização entre pipeline e calendário
+          const sePipelineRaw = m.se_atual || 0;
+          const gapCalendario = seCal.seUltimaCompleta - sePipelineRaw; // >0: pipeline atrasado
+          const temSeParcial = sePartialExists;
+          const fmtDateTime = (d) => d ? d.toLocaleString("pt-BR", {
+            day: "2-digit", month: "2-digit", year: "numeric",
+            hour: "2-digit", minute: "2-digit"
+          }) : "—";
+          // Formatar intervalo SE (domingo-sábado)
+          const fmtSeRange = (seNum) => {
+            const start = new Date(seCal.seStart.getTime() - (seCal.seEmCurso - seNum) * 7 * 86400000);
+            const end = new Date(start.getTime() + 6 * 86400000);
+            const pad = n => String(n).padStart(2, '0');
+            return `${pad(start.getDate())}/${pad(start.getMonth()+1)} a ${pad(end.getDate())}/${pad(end.getMonth()+1)}`;
+          };
+          // Cor de fundo/borda com base em severidade do problema
+          const bgCor = temSeParcial || gapCalendario > 0 ? "rgba(245,158,11,0.08)" : "rgba(34,197,94,0.08)";
+          const brdCor = temSeParcial || gapCalendario > 0 ? "rgba(245,158,11,0.25)" : "rgba(34,197,94,0.25)";
+          return (
+            <div style={{
+              marginTop: 14, padding: "10px 14px", borderRadius: 8,
+              background: bgCor, border: `1px solid ${brdCor}`,
+              fontSize: 11, color: "#cbd5e1",
+              display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+              gap: 12, textAlign: "left"
+            }}>
+              <div>
+                <div style={{ fontSize: 9, color: "#64748b", textTransform: "uppercase", letterSpacing: 0.5 }}>
+                  Análise
+                </div>
+                <div>
+                  <b style={{ color: "#22c55e" }}>SE {seAnalise}/{ano}</b>
+                  <span style={{ fontSize: 9, color: "#64748b", marginLeft: 4 }}>
+                    ({fmtSeRange(seAnalise)})
+                  </span>
+                </div>
+                <div style={{ fontSize: 9, color: "#64748b" }}>
+                  Última SE completa — usada em status, tendências e classificação
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: 9, color: "#64748b", textTransform: "uppercase", letterSpacing: 0.5 }}>
+                  Pipeline (dados brutos)
+                </div>
+                <div>
+                  SE {sePipelineRaw}/{ano}
+                  {temSeParcial && (
+                    <span style={{ color: "#f59e0b", fontWeight: 600, marginLeft: 4 }}>
+                      ⚠ parcial
+                    </span>
+                  )}
+                </div>
+                <div style={{ fontSize: 9, color: "#64748b" }}>
+                  Última extração: {fmtDateTime(gen)}
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: 9, color: "#64748b", textTransform: "uppercase", letterSpacing: 0.5 }}>
+                  Calendário
+                </div>
+                <div>
+                  Hoje: SE{seCal.seEmCurso} ({seCal.diasDecorridos}/7 dias)
+                </div>
+                <div style={{ fontSize: 9, color: "#64748b" }}>
+                  Última completa: SE{seCal.seUltimaCompleta}
+                  {gapCalendario > 0 && (
+                    <span style={{ color: "#f59e0b", marginLeft: 4 }}>
+                      (pipeline atrasado {gapCalendario} SE)
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+      </div>
+
+      {/* ═══ 1. Panorama Geral ═══ */}
+      <div style={cardStyle}>
+        {sectionTitle("1. Panorama Geral")}
+        <p style={{ color: "#cbd5e1", fontSize: 13, lineHeight: 1.8, margin: "0 0 12px" }}>
+          Este boletim apresenta o monitoramento sindrômico semanal das Unidades de Pronto Atendimento (UPAs)
+          da Fundação Municipal de Saúde (FMS) de Rio Claro/SP. Os dados representam o número de atendimentos
+          realizados por hipótese diagnóstica — sintomas ou doenças registradas nas UPAs — que estimam
+          indiretamente o número real de casos ocorridos na população do município. O sistema probabilidade de ocorrência esperada
+          estima limiares de probabilidade de ocorrência esperada por semana epidemiológica, classificando
+          cada SE em cinco zonas: <span style={{color: "#22c55e"}}>Sucesso</span>,{" "}
+          <span style={{color: "#3b82f6"}}>Segurança</span>,{" "}
+          <span style={{color: "#f59e0b"}}>Alerta</span>,{" "}
+          <span style={{color: "#f97316"}}>Epidêmico</span> e{" "}
+          <span style={{color: "#ef4444"}}>Emergência</span>.
+        </p>
+        <p style={{ color: "#cbd5e1", fontSize: 13, lineHeight: 1.8, margin: "0 0 12px" }}>
+          Os dados de 2026 são apresentados como observados e comparados ao padrão histórico de atendimentos (2023–2025), garantindo avaliação prospectiva genuína.
+        </p>
+        <div style={{ background: "rgba(129,140,248,0.08)", padding: "10px 14px", borderRadius: 8,
+          fontSize: 12, color: "#a5b4fc" }}>
+          Dashboard interativo:{" "}
+          <a href="https://ekokubun.github.io/canal-endemico/" target="_blank" rel="noopener noreferrer"
+            style={{ color: "#818cf8", textDecoration: "underline" }}>
+            https://ekokubun.github.io/canal-endemico/
+          </a>
+        </div>
+      </div>
+
+      {/* ═══ 2. Quadro Resumo — âncora 2026 ═══ */}
+      {(() => {
+        // Enriquecer BOLETIM_DATA uma única vez com:
+        //   - total_2025_ytd_p50: soma sazonal dos P50 das SE 1..N de 2025 (referência histórica)
+        //   - var_pct_p50_ytd: variação % de 2026-YTD vs 2025-P50-YTD
+        //   - zonas_2026_seq: sequência de classificações 2026, SE 1..N
+        //   - trend_last4: últimas 4 zonas observadas em 2026 (para sparkline)
+        // Usa DATA.channels[agravo].channels["2025"] (quantis) e classifications["2026"].
+        const enriched = BOLETIM_DATA.map(item => {
+          const ch = DATA.channels[item.name];
+          // seN = última SE COMPLETA (filtrando SE parcial se houver)
+          // item.se_2026 pode ter SE parcial; seAnalise garante apenas SEs completas.
+          const seN = Math.min(item.se_2026 || 0, seAnalise);
+          let p50_ytd = null, var_ytd = null, zonas_seq = [], trend_last4 = [];
+          // Recalcular total_2026 somando só SEs COMPLETAS (SE parcial é excluída)
+          // item.total_2026 do pipeline inclui SE parcial — não usar para estatística.
+          let total_2026_completo = 0;
+          if (ch && ch.raw && seN > 0) {
+            total_2026_completo = ch.raw
+              .filter(r => r.se <= seN)
+              .reduce((s, r) => s + (r.c2026 || 0), 0);
+          }
+          if (ch && ch.channels && ch.channels["2025"] && seN > 0) {
+            // P50 está no índice 2 (quantiles [P10, P25, P50, P75, P90])
+            p50_ytd = ch.channels["2025"].slice(0, seN).reduce((s, row) => s + (row[2] || 0), 0);
+            if (p50_ytd > 0) {
+              var_ytd = ((total_2026_completo - p50_ytd) / p50_ytd) * 100;
+            }
+          }
+          if (ch && ch.classifications && ch.classifications["2026"]) {
+            zonas_seq = ch.classifications["2026"].slice(0, seN);
+            trend_last4 = zonas_seq.slice(-4);
+          }
+          // Recontar zonas apenas das SEs JÁ OBSERVADAS (1..seN), ignorando futuras.
+          // O classificacao_2026 pré-agregado no BOLETIM_DATA inclui todas as 52 SEs
+          // (pipeline classifica observado=0 como "sucesso"), o que contamina a barra.
+          const zonas_2026_cls = { sucesso: 0, seguranca: 0, alerta: 0, epidemico: 0, emergencia: 0 };
+          zonas_seq.forEach(z => { if (z in zonas_2026_cls) zonas_2026_cls[z]++; });
+          // Status Fiocruz = pior zona das últimas 2 SEs observadas (padrão InfoGripe)
+          const zonaRankQR = { sucesso: 0, seguranca: 1, alerta: 2, epidemico: 3, emergencia: 4 };
+          const rankToZonaQR = ["sucesso", "seguranca", "alerta", "epidemico", "emergencia"];
+          const ultimas2 = zonas_seq.slice(-2);
+          const status_fiocruz = ultimas2.length === 0
+            ? "sucesso"
+            : rankToZonaQR[Math.max(...ultimas2.map(z => zonaRankQR[z] ?? 0))];
+          return { ...item, total_2025_ytd_p50: p50_ytd, var_pct_p50_ytd: var_ytd,
+                   zonas_2026_seq: zonas_seq, trend_last4, zonas_2026_cls, status_fiocruz,
+                   total_2026_completo, seN_analise: seN };
+        });
+
+        // Emoji por zona para sparkline compacto de tendência
+        const zonaEmoji = { sucesso: "🟢", seguranca: "🔵", alerta: "🟡", epidemico: "🟠", emergencia: "🔴" };
+        // Cor de fundo/texto para o pill de status atual (usa zonaCor existente do BoletimTab)
+        const statusPillStyle = (zona) => ({
+          padding: "3px 8px", borderRadius: 6, fontSize: 10, fontWeight: 700,
+          background: zonaCor[zona] ? zonaCor[zona] + "33" : "rgba(255,255,255,0.06)",
+          color: zonaCor[zona] || "#94a3b8",
+          whiteSpace: "nowrap",
+        });
+        // Cor da variação % (alto desvio positivo = vermelho, negativo grande = verde)
+        const varColor = (v) => v == null ? "#64748b"
+          : v >= 25 ? "#ef4444"
+          : v >= 10 ? "#f59e0b"
+          : v <= -25 ? "#22c55e"
+          : v <= -10 ? "#3b82f6"
+          : "#94a3b8";
+
+        // Ordenar por urgência
+        const zonaRankOrd = {emergencia:4, epidemico:3, alerta:2, seguranca:1, sucesso:0};
+        enriched.sort((a, b) => (zonaRankOrd[b.status_fiocruz]||0) - (zonaRankOrd[a.status_fiocruz]||0));
+
+        return (
+          <div style={cardStyle}>
+            {sectionTitle(`2. Quadro Resumo — 2026 YTD (SE 1–${enriched[0]?.seN_analise || "?"}) vs 2025 Esperado`)}
+            <p style={{ color: "#94a3b8", fontSize: 12, margin: "0 0 12px", lineHeight: 1.6 }}>
+              Comparação sazonal: 2026 observado até a SE {enriched[0]?.seN_analise || "?"} (última SE completa) contra a frequência esperada histórica
+              nas mesmas SEs de 2025. <b>Status Fiocruz</b> = pior zona das últimas 2 SEs observadas
+              (padrão InfoGripe). Passe o mouse sobre o nome do agravo para ver o contexto histórico 2025.
+            </p>
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                <thead>
+                  <tr style={{ borderBottom: "2px solid rgba(255,255,255,0.1)" }}>
+                    {[
+                      "Agravo", "Status Fiocruz", "2026 YTD", "2025 Esperado", "Var%",
+                      "Pico 2026", "Últ. 4 SEs", "Zonas 2026"
+                    ].map(h => (
+                      <th key={h} style={{ padding: "8px 6px", textAlign: "left", color: "#94a3b8",
+                        fontWeight: 600, whiteSpace: "nowrap", fontSize: 11 }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {enriched.map((item, i) => {
+                    const tooltipHist = `Contexto histórico 2025 — Prioridade: ${item.prioridade}`
+                      + ` · Var% 2025 vs média 22-24: ${item.variacao_pct > 0 ? "+" : ""}${item.variacao_pct}%`
+                      + ` · Pico 2025: ${(item.pico_val_2025 || 0).toLocaleString("pt-BR")} na SE ${item.pico_se_2025}`
+                      + ` · SEs>P90 em 2025: ${item.se_p90_2025}`;
+                    return (
+                      <tr key={i} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)",
+                        cursor: "pointer",
+                        background: expandido === i ? "rgba(129,140,248,0.06)" : "transparent" }}
+                        onClick={() => setExpandido(expandido === i ? null : i)}>
+                        {/* Col 1: Agravo (com tooltip de contexto histórico 2025) */}
+                        <td style={{ padding: "8px 6px", fontWeight: 500, fontSize: 12, maxWidth: 200 }}>
+                          <span title={tooltipHist} style={{ borderBottom: "1px dotted rgba(255,255,255,0.2)",
+                            cursor: "help" }}>
+                            {item.name}
+                          </span>
+                        </td>
+                        {/* Col 2: Status Fiocruz (pior zona últimas 2 SEs) */}
+                        <td style={{ padding: "8px 6px" }}>
+                          <span style={statusPillStyle(item.status_fiocruz)}
+                            title={`Pior zona nas últimas 2 SEs (padrão Fiocruz/InfoGripe). Últ. SE isolada: ${zonaNome[item.ultima_se_zona] || item.ultima_se_zona}`}>
+                            {zonaNome[item.status_fiocruz] || item.status_fiocruz}
+                          </span>
+                        </td>
+                        {/* Col 3: 2026 YTD (somente SEs completas) */}
+                        <td style={{ padding: "8px 6px", fontFamily: "JetBrains Mono, monospace",
+                          fontSize: 11, color: "#fbbf24", fontWeight: 600 }}
+                          title={sePartialExists ? `SE ${sePartial} em curso foi excluída da soma` : null}>
+                          {item.total_2026_completo.toLocaleString("pt-BR")}
+                        </td>
+                        {/* Col 4: 2025 YTD P50 */}
+                        <td style={{ padding: "8px 6px", fontFamily: "JetBrains Mono, monospace",
+                          fontSize: 11, color: "#cbd5e1" }}>
+                          {item.total_2025_ytd_p50 != null
+                            ? Math.round(item.total_2025_ytd_p50).toLocaleString("pt-BR")
+                            : "—"}
+                        </td>
+                        {/* Col 5: Var% vs 2025 P50 */}
+                        <td style={{ padding: "8px 6px", fontFamily: "JetBrains Mono, monospace",
+                          fontSize: 11, color: varColor(item.var_pct_p50_ytd), fontWeight: 600 }}>
+                          {item.var_pct_p50_ytd != null
+                            ? `${item.var_pct_p50_ytd > 0 ? "+" : ""}${item.var_pct_p50_ytd.toFixed(1)}%`
+                            : "—"}
+                        </td>
+                        {/* Col 6: Pico 2026 (valor + SE) */}
+                        <td style={{ padding: "8px 6px", fontFamily: "JetBrains Mono, monospace", fontSize: 11 }}>
+                          {(item.pico_val_2026 || 0).toLocaleString("pt-BR")}
+                          <span style={{ fontSize: 9, color: "#64748b" }}> SE{item.pico_se_2026}</span>
+                        </td>
+                        {/* Col 7: Sparkline tendência últimas 4 SEs */}
+                        <td style={{ padding: "8px 6px", fontSize: 13, letterSpacing: 1, whiteSpace: "nowrap" }}
+                          title={item.trend_last4.length > 0
+                            ? `Últimas ${item.trend_last4.length} SEs: ${item.trend_last4.map(z => zonaNome[z]||z).join(" · ")}`
+                            : "Sem dados"}>
+                          {item.trend_last4.length > 0
+                            ? item.trend_last4.map((z, idx) => <span key={idx}>{zonaEmoji[z] || "·"}</span>)
+                            : <span style={{color: "#64748b"}}>—</span>}
+                        </td>
+                        {/* Col 8: Mini-barra zonas 2026 (apenas SEs completas, sem parcial/futuras) */}
+                        <td style={{ padding: "8px 6px", minWidth: 140 }}>
+                          <ZonaBar cls={item.zonas_2026_cls}
+                                   totalSEs={52}
+                                   seCompleta={item.seN_analise} />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <div style={{ fontSize: 10, color: "#64748b", marginTop: 10, fontStyle: "italic", lineHeight: 1.5 }}>
+              Clique em uma linha para expandir a análise detalhada. Passe o mouse sobre o nome do agravo
+              para ver o contexto histórico 2025. Var%: ≥+25% vermelho, +10/+25% laranja,
+              −10/−25% azul, ≤−25% verde.
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ═══ 3. Mapa de Calor Sindrômico ═══ */}
+      <div style={cardStyle}>
+        {sectionTitle("3. Mapa de Calor Sindrômico — " + (DATA.metadata?.ano_atual || new Date().getFullYear()))}
+        <p style={{ color: "#94a3b8", fontSize: 12, margin: "0 0 12px" }}>
+          Classificação por semana epidemiológica e capítulo CID. SEs completas classificadas; SE em curso em cinza (sem classificar).
+          🟢 Sucesso · 🟡 Segurança · 🟠 Alerta · 🔴 Epidêmico · ⛔ Emergência · ▨ Em curso
+        </p>
+        {(() => {
+          const ano = DATA.metadata?.ano_atual || new Date().getFullYear();
+          const caps = Object.keys(DATA.channels).filter(k => /^[IVX]+ -/.test(k));
+          const ch0 = DATA.channels[caps[0]];
+          // Usa seAnalise (apenas SEs COMPLETAS pelo calendário)
+          // e sePartial (a parcial, renderizada à parte como "em curso")
+          const seCompleta__ = seAnalise;
+          // Apenas SEs com dados E dentro da janela observada (1..se_atual)
+          const sesComDados = ch0.raw
+            .filter(r => (r['c' + ano] || 0) > 0 && r.se <= seCompleta__)
+            .map(r => r.se)
+            .sort((a,b) => a-b);
+          if (sesComDados.length === 0) return null;
+          const zoneColor = {
+            sucesso: '#166534', seguranca: '#365314', alerta: '#713f12',
+            epidemico: '#7c2d12', emergencia: '#450a0a', '?': '#1e293b'
+          };
+          const zoneBg = {
+            sucesso: '#bbf7d0', seguranca: '#d9f99d', alerta: '#fef08a',
+            epidemico: '#fed7aa', emergencia: '#fecaca', '?': '#334155'
+          };
+          const zoneLabel = {
+            sucesso: 'S✓', seguranca: 'Sg', alerta: 'Al', epidemico: 'Ep', emergencia: 'Em', '?': '?'
+          };
+          return (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ borderCollapse: 'collapse', fontSize: 10, width: '100%' }}>
+                <thead>
+                  <tr>
+                    <th style={{ textAlign: 'left', padding: '3px 6px', color: '#94a3b8', fontWeight: 600, minWidth: 140 }}>Capítulo CID</th>
+                    {sesComDados.map(se => (
+                      <th key={se} style={{ textAlign: 'center', padding: '3px 4px', color: '#94a3b8', fontWeight: 600, minWidth: 28 }}>
+                        {se}
+                      </th>
+                    ))}
+                    {sePartialExists && (
+                      <th style={{ textAlign: 'center', padding: '3px 4px',
+                        color: '#fbbf24', fontWeight: 600, minWidth: 28,
+                        borderLeft: '1px dashed rgba(251,191,36,0.4)' }}
+                        title={`SE${sePartial} em curso (${seCal.diasDecorridos}/7 dias)`}>
+                        {sePartial}*
+                      </th>
+                    )}
+                  </tr>
+                </thead>
+                <tbody>
+                  {caps.map(cap => {
+                    const ch = DATA.channels[cap];
+                    const cl = ch.classifications?.[String(ano)] || [];
+                    const label = cap.replace(/^[IVX]+ - /, '').substring(0, 24);
+                    return (
+                      <tr key={cap}>
+                        <td style={{ padding: '2px 6px', color: '#cbd5e1', fontSize: 10, whiteSpace: 'nowrap' }} title={cap}>{label}</td>
+                        {sesComDados.map(se => {
+                          const zone = cl[se - 1] || '?';
+                          const obs = ch.raw.find(r => r.se === se)?.['c' + ano] || 0;
+                          return (
+                            <td key={se} title={`${cap} · SE${se}: ${obs} atend. (${zone})`}
+                              style={{
+                                textAlign: 'center', padding: '2px 3px',
+                                background: zoneBg[zone] || '#1e293b',
+                                color: zoneColor[zone] || '#94a3b8',
+                                fontWeight: 700, fontSize: 9, cursor: 'default',
+                                borderRadius: 2, margin: 1
+                              }}>
+                              {zoneLabel[zone]}
+                            </td>
+                          );
+                        })}
+                        {sePartialExists && (() => {
+                          const obsPartial = ch.raw.find(r => r.se === sePartial)?.['c' + ano] || 0;
+                          return (
+                            <td title={`${cap} · SE${sePartial} (em curso, ${seCal.diasDecorridos}/7 dias): ${obsPartial} atend. parciais — não classificada`}
+                              style={{
+                                textAlign: 'center', padding: '2px 3px',
+                                background: 'repeating-linear-gradient(45deg, #475569, #475569 3px, #334155 3px, #334155 6px)',
+                                color: '#cbd5e1',
+                                fontWeight: 700, fontSize: 9, cursor: 'default',
+                                borderRadius: 2, margin: 1,
+                                borderLeft: '1px dashed rgba(251,191,36,0.4)'
+                              }}>
+                              ▨
+                            </td>
+                          );
+                        })()}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+              {sePartialExists && (
+                <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 8,
+                  fontStyle: "italic", lineHeight: 1.5 }}>
+                  * SE{sePartial} em curso ({seCal.diasDecorridos}/7 dias) — dados parciais, não classificados.
+                  Fecha sábado {String(seCal.seEnd.getDate()).padStart(2,'0')}/{String(seCal.seEnd.getMonth()+1).padStart(2,'0')}.
+                </div>
+              )}
+            </div>
+          );
+        })()}
+      </div>
+
+      {/* ═══ 4. Análise por Agravo — Status Fiocruz (pior zona últ. 2 SEs) ═══ */}
+      {(() => {
+        // Ordem narrativa de urgência por STATUS FIOCRUZ (pior zona das últimas 2 SEs)
+        const ordemStatus = ["emergencia", "epidemico", "alerta", "seguranca", "sucesso"];
+        const statusLabel = {
+          emergencia: "EMERGÊNCIA",
+          epidemico:  "EPIDÊMICO",
+          alerta:     "ALERTA",
+          seguranca:  "SEGURANÇA",
+          sucesso:    "SUCESSO",
+        };
+        const statusCor = {
+          emergencia: "#ef4444",
+          epidemico:  "#f97316",
+          alerta:     "#f59e0b",
+          seguranca:  "#3b82f6",
+          sucesso:    "#22c55e",
+        };
+
+        // Hierarquia de severidade das zonas (para operador "pior zona")
+        const zonaRank = { sucesso: 0, seguranca: 1, alerta: 2, epidemico: 3, emergencia: 4 };
+        const rankToZona = ["sucesso", "seguranca", "alerta", "epidemico", "emergencia"];
+        const piorZona = (zonas) => {
+          if (!zonas || zonas.length === 0) return "sucesso";
+          return rankToZona[Math.max(...zonas.map(z => zonaRank[z] ?? 0))];
+        };
+
+        // Parâmetros de janela (padrão Fiocruz/InfoGripe)
+        const JANELA_STATUS = 2;   // nível de atividade: últimas 2 SEs
+        const JANELA_CP = 3;        // tendência curto prazo: últimas 3 SEs
+        const JANELA_LP = 6;        // tendência longo prazo: últimas 6 SEs
+
+        // Classificador de tendência: compara média das últimas N SEs vs N SEs anteriores
+        // Retorna "cresc" / "queda" / "estavel" / null (dados insuficientes)
+        const tendencia = (obsArr, janela) => {
+          if (!obsArr || obsArr.length < 2 * janela) return null;
+          const ultN = obsArr.slice(-janela);
+          const antN = obsArr.slice(-2 * janela, -janela);
+          const mediaUlt = ultN.reduce((s, v) => s + v, 0) / janela;
+          const mediaAnt = antN.reduce((s, v) => s + v, 0) / janela;
+          if (mediaAnt === 0) return mediaUlt > 0 ? "cresc" : "estavel";
+          const delta = (mediaUlt - mediaAnt) / mediaAnt;
+          if (delta >= 0.10) return "cresc";
+          if (delta <= -0.10) return "queda";
+          return "estavel";
+        };
+
+        // Para cada item: recontar zonas 2026 APENAS de SEs observadas (mesma lógica do Quadro Resumo)
+        // + computar status Fiocruz (pior zona últimas 2 SEs) + tendências CP/LP
+        const itensEnriquecidos = BOLETIM_DATA.map(item => {
+          const ch = DATA.channels[item.name];
+          // seN = última SE COMPLETA (exclui SE parcial que não fechou)
+          const seN = Math.min(item.se_2026 || 0, seAnalise);
+          let zonas_seq = [];
+          let obs_seq = [];
+          if (ch && ch.classifications && ch.classifications["2026"]) {
+            zonas_seq = ch.classifications["2026"].slice(0, seN);
+          }
+          if (ch && ch.raw) {
+            // Série observada de 2026 até a última SE COMPLETA (ordem cronológica)
+            obs_seq = ch.raw
+              .filter(r => r.se <= seN)
+              .sort((a, b) => a.se - b.se)
+              .map(r => r.c2026 || r["c2026"] || 0);
+          }
+          // Total 2026 YTD somente de SEs COMPLETAS (exclui parcial)
+          const total_2026_completo = obs_seq.reduce((s, v) => s + v, 0);
+          const zonas_2026_cls = { sucesso: 0, seguranca: 0, alerta: 0, epidemico: 0, emergencia: 0 };
+          zonas_seq.forEach(z => { if (z in zonas_2026_cls) zonas_2026_cls[z]++; });
+          const sesCriticas2026 = zonas_2026_cls.epidemico + zonas_2026_cls.emergencia;
+
+          // Status Fiocruz: pior zona das últimas 2 SEs COMPLETAS (não usa SE parcial)
+          const ultimasJanela = zonas_seq.slice(-JANELA_STATUS);
+          const status_fiocruz = piorZona(ultimasJanela);
+
+          // Tendências (padrão InfoGripe: CP=3 SEs, LP=6 SEs — só SEs completas)
+          const trend_cp = tendencia(obs_seq, JANELA_CP);
+          const trend_lp = tendencia(obs_seq, JANELA_LP);
+
+          // Média semanal 2026 — recalculada só com SEs completas
+          const media_semanal_2026_comp = obs_seq.length > 0
+            ? (total_2026_completo / obs_seq.length).toFixed(1)
+            : 0;
+
+          // Var% YTD (2026 vs P50 de 2025 nas mesmas SEs COMPLETAS)
+          let var_ytd = null;
+          if (ch && ch.channels && ch.channels["2025"] && seN > 0) {
+            const p50_ytd = ch.channels["2025"].slice(0, seN).reduce((s, r) => s + (r[2] || 0), 0);
+            if (p50_ytd > 0) var_ytd = ((total_2026_completo - p50_ytd) / p50_ytd) * 100;
+          }
+          return { ...item, zonas_2026_cls, sesCriticas2026, var_ytd_p50: var_ytd,
+                   status_fiocruz, ultimasJanela, trend_cp, trend_lp,
+                   total_2026_completo, seN_analise: seN,
+                   media_semanal_2026_comp };
+        });
+
+        // Agrupar por STATUS FIOCRUZ (pior zona das últimas 2 SEs)
+        const gruposPorStatus = {};
+        ordemStatus.forEach(s => { gruposPorStatus[s] = []; });
+        itensEnriquecidos.forEach(it => {
+          const z = it.status_fiocruz || "sucesso";
+          if (!(z in gruposPorStatus)) gruposPorStatus[z] = [];
+          gruposPorStatus[z].push(it);
+        });
+
+        // Cor da variação % (mesma regra do Quadro Resumo, para consistência)
+        const varColor2 = (v) => v == null ? "#64748b"
+          : v >= 25 ? "#ef4444"
+          : v >= 10 ? "#f59e0b"
+          : v <= -25 ? "#22c55e"
+          : v <= -10 ? "#3b82f6"
+          : "#94a3b8";
+
+        // Renderiza um card de agravo (layout único para todos os status)
+        const renderCardAgravo = (item, i, corStatus) => {
+          // Zona âncora = status Fiocruz (pior das últimas 2 SEs), NÃO a última SE isolada
+          const zona = item.status_fiocruz;
+          const zonaUltimaSe = item.ultima_se_zona;
+          const zonaNomeAtual = zonaNome[zona] || zona;
+          const zonaCorAtual = zonaCor[zona] || "#94a3b8";
+          const prioCor = prioridadeCor[item.prioridade] || "#94a3b8";
+
+          // Helper: rótulo + emoji + cor para tendência CP/LP
+          const trendDisplay = (t) => {
+            if (t === "cresc")  return { label: "crescimento", emoji: "↗", cor: "#ef4444" };
+            if (t === "queda")  return { label: "queda",       emoji: "↘", cor: "#22c55e" };
+            if (t === "estavel")return { label: "estável",     emoji: "→", cor: "#94a3b8" };
+            return { label: "sem dados", emoji: "·", cor: "#64748b" };
+          };
+          const cp = trendDisplay(item.trend_cp);
+          const lp = trendDisplay(item.trend_lp);
+
+          // Emoji por zona para mostrar as últimas 2 SEs
+          const zonaEmojiCard = { sucesso: "🟢", seguranca: "🔵", alerta: "🟡", epidemico: "🟠", emergencia: "🔴" };
+
+          return (
+            <div key={i} style={{
+              ...cardStyle,
+              borderLeft: `3px solid ${corStatus}`,
+              background: `${corStatus}08`,
+              marginBottom: 12
+            }}>
+              {/* Header: nome + badge STATUS FIOCRUZ (âncora) */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start",
+                marginBottom: 10, gap: 12, flexWrap: "wrap" }}>
+                <div style={{ flex: 1, minWidth: 200 }}>
+                  <div style={{ fontSize: 15, fontWeight: 700 }}>{item.name}</div>
+                  {/* Linha de contexto histórico discreta */}
+                  <div style={{ fontSize: 10, color: "#64748b", marginTop: 2 }}>
+                    Contexto histórico 2025:
+                    <span style={{ color: prioCor, fontWeight: 600, marginLeft: 4 }}>
+                      prio {item.prioridade}
+                    </span>
+                    {" · "}{item.variacao_pct > 0 ? "+" : ""}{item.variacao_pct}% vs média 22-24
+                    {" · "}pico SE{item.pico_se_2025}
+                  </div>
+                </div>
+                {/* Badge principal = STATUS FIOCRUZ (pior das últimas 2 SEs) */}
+                <span title={`Status Fiocruz: pior zona nas últimas ${JANELA_STATUS} SEs (${item.ultimasJanela.map(z=>zonaNome[z]||z).join(" · ")})`}
+                  style={{
+                  padding: "5px 12px", borderRadius: 6, fontSize: 11, fontWeight: 700,
+                  background: `${zonaCorAtual}22`, color: zonaCorAtual,
+                  border: `1px solid ${zonaCorAtual}55`, whiteSpace: "nowrap"
+                }}>
+                  {zonaNomeAtual.toUpperCase()} · SE{item.seN_analise}
+                </span>
+              </div>
+
+              {/* Tira Fiocruz: nível de atividade (últimas 2 SEs) + CP (3 SEs) + LP (6 SEs) */}
+              <div style={{ display: "flex", gap: 12, marginBottom: 10, flexWrap: "wrap",
+                background: "rgba(255,255,255,0.02)", padding: "8px 12px", borderRadius: 8,
+                border: "1px solid rgba(255,255,255,0.05)" }}>
+                <div style={{ fontSize: 11, color: "#94a3b8" }}>
+                  <b style={{ color: "#cbd5e1" }}>Nível de atividade</b>
+                  <span style={{ fontSize: 9, color: "#64748b" }}> (últ. 2 SEs)</span>:{" "}
+                  <span style={{ letterSpacing: 2 }}>
+                    {item.ultimasJanela.map((z, idx) => (
+                      <span key={idx} title={zonaNome[z]}>{zonaEmojiCard[z] || "·"}</span>
+                    ))}
+                  </span>
+                  {zonaUltimaSe !== zona && (
+                    <span style={{ fontSize: 9, color: "#64748b", marginLeft: 4 }}>
+                      · últ. SE isolada: <span style={{ color: zonaCor[zonaUltimaSe] }}>{zonaNome[zonaUltimaSe]}</span>
+                    </span>
+                  )}
+                </div>
+                <div style={{ fontSize: 11, color: "#94a3b8" }}>
+                  <b style={{ color: "#cbd5e1" }}>Tendência CP</b>
+                  <span style={{ fontSize: 9, color: "#64748b" }}> (3 SEs)</span>:{" "}
+                  <span style={{ color: cp.cor, fontWeight: 600 }}>{cp.emoji} {cp.label}</span>
+                </div>
+                <div style={{ fontSize: 11, color: "#94a3b8" }}>
+                  <b style={{ color: "#cbd5e1" }}>Tendência LP</b>
+                  <span style={{ fontSize: 9, color: "#64748b" }}> (6 SEs)</span>:{" "}
+                  <span style={{ color: lp.cor, fontWeight: 600 }}>{lp.emoji} {lp.label}</span>
+                </div>
+              </div>
+
+              {/* Tendência histórica 2025 (descrição textual, em tom neutro) */}
+              <div style={{ fontSize: 12, color: "#94a3b8", lineHeight: 1.6, marginBottom: 12,
+                fontStyle: "italic" }}>
+                Tendência 2025: {item.tendencia}
+              </div>
+
+              {/* Cards numéricos: 2026 dominante à esquerda, 2025 como contexto à direita */}
+              <div style={{ display: "grid", gridTemplateColumns: "1.3fr 1fr 1fr", gap: 8, marginBottom: 12 }}>
+                {/* Card 1 (DOMINANTE): 2026 — somente SEs completas */}
+                <div style={{
+                  background: `${zonaCorAtual}15`,
+                  border: `1px solid ${zonaCorAtual}33`,
+                  borderRadius: 8, padding: "10px 12px"
+                }}>
+                  <div style={{ fontSize: 10, color: zonaCorAtual, textTransform: "uppercase",
+                    fontWeight: 700, letterSpacing: 0.5 }}>
+                    2026 YTD (SE 1–{item.seN_analise})
+                  </div>
+                  <div style={{ fontSize: 20, fontWeight: 700, fontFamily: "JetBrains Mono, monospace",
+                    color: zonaCorAtual }}
+                    title={sePartialExists ? `SE ${sePartial} em curso foi excluída (dados parciais)` : null}>
+                    {item.total_2026_completo.toLocaleString("pt-BR")}
+                  </div>
+                  <div style={{ fontSize: 10, color: "#94a3b8", lineHeight: 1.4 }}>
+                    {item.media_semanal_2026_comp}/sem · Pico {(item.pico_val_2026||0).toLocaleString("pt-BR")} SE{item.pico_se_2026}
+                    <br/>
+                    Últ. SE completa (SE{item.seN_analise}): obs {item.ultima_se_obs} vs P50 {item.ultima_se_p50}, P90 {item.ultima_se_p90}
+                  </div>
+                </div>
+
+                {/* Card 2: Alertas 2026 */}
+                <div style={{ background: "rgba(255,255,255,0.04)", borderRadius: 8, padding: "10px 12px" }}>
+                  <div style={{ fontSize: 10, color: "#94a3b8", textTransform: "uppercase" }}>
+                    Alertas 2026
+                  </div>
+                  <div style={{ fontSize: 18, fontWeight: 700, fontFamily: "JetBrains Mono, monospace",
+                    color: item.sesCriticas2026 > 0 ? "#f97316" : "#22c55e" }}>
+                    {item.sesCriticas2026}
+                  </div>
+                  <div style={{ fontSize: 10, color: "#64748b" }}>
+                    SEs Ep/Em · Var P50: <b style={{ color: varColor2(item.var_ytd_p50) }}>
+                      {item.var_ytd_p50 != null
+                        ? `${item.var_ytd_p50 > 0 ? "+" : ""}${item.var_ytd_p50.toFixed(1)}%`
+                        : "—"}
+                    </b>
+                  </div>
+                </div>
+
+                {/* Card 3: Histórico 2025 (DISCRETO) */}
+                <div style={{ background: "rgba(255,255,255,0.02)", borderRadius: 8, padding: "10px 12px",
+                  border: "1px dashed rgba(255,255,255,0.08)" }}>
+                  <div style={{ fontSize: 10, color: "#64748b", textTransform: "uppercase" }}>
+                    2025 completo
+                  </div>
+                  <div style={{ fontSize: 14, fontWeight: 600, fontFamily: "JetBrains Mono, monospace",
+                    color: "#94a3b8" }}>
+                    {item.total_2025.toLocaleString("pt-BR")}
+                  </div>
+                  <div style={{ fontSize: 10, color: "#64748b" }}>
+                    {item.se_p90_2025} SEs {">"}P90 · Sazon. SE{item.pico_se_2025}
+                  </div>
+                </div>
+              </div>
+
+              {/* Classificação 2026 (observado) em destaque, 2025 em tom discreto abaixo */}
+              <div style={{ marginBottom: 8 }}>
+                <div style={{ fontSize: 11, color: "#e2e8f0", marginBottom: 4, fontWeight: 600 }}>
+                  Classificação semanal 2026 ({item.seN_analise} SEs completas)
+                  {sePartialExists && (
+                    <span style={{ fontSize: 9, color: "#64748b", marginLeft: 6 }}>
+                      · SE{sePartial} em curso (excluída)
+                    </span>
+                  )}
+                </div>
+                <ZonaBar cls={item.zonas_2026_cls} totalSEs={52} seCompleta={item.seN_analise} />
+              </div>
+
+              <details style={{ marginBottom: 10 }}>
+                <summary style={{ fontSize: 10, color: "#64748b", cursor: "pointer",
+                  userSelect: "none", padding: "4px 0" }}>
+                  ▸ Ver classificação 2025 completa (contexto histórico)
+                </summary>
+                <div style={{ marginTop: 6, opacity: 0.7 }}>
+                  <ZonaBar cls={item.classificacao_2025} totalSEs={52} seCompleta={52} />
+                </div>
+              </details>
+
+              <div style={{ fontSize: 12, color: "#818cf8", background: "rgba(129,140,248,0.08)",
+                padding: "8px 12px", borderRadius: 8 }}>
+                <b>Ação recomendada:</b> {item.acao}
+              </div>
+            </div>
+          );
+        };
+
+        return (
+          <div style={cardStyle}>
+            {sectionTitle("4. Análise por Agravo — Status Fiocruz (últimas 2 SEs)")}
+            <p style={{ color: "#94a3b8", fontSize: 12, margin: "0 0 16px", lineHeight: 1.6 }}>
+              Agravos agrupados pelo <b>nível de atividade</b> (pior zona nas últimas 2 SEs observadas, padrão
+              InfoGripe/Fiocruz). Cada card mostra também as tendências de <b>curto prazo</b> (3 SEs) e
+              <b> longo prazo</b> (6 SEs). A prioridade histórica 2025 aparece como contexto discreto.
+            </p>
+
+            {ordemStatus.map(status => {
+              const itens = gruposPorStatus[status];
+              if (!itens || itens.length === 0) return null;
+              const cor = statusCor[status];
+              return (
+                <div key={status} style={{ marginBottom: 20 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: cor, marginBottom: 10,
+                    display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ background: `${cor}22`, padding: "3px 10px", borderRadius: 6,
+                      fontSize: 11, fontWeight: 700, border: `1px solid ${cor}44` }}>
+                      {statusLabel[status]} · {itens.length} agravo{itens.length > 1 ? "s" : ""}
+                    </span>
+                  </div>
+                  {itens.map((item, i) => renderCardAgravo(item, i, cor))}
+                </div>
+              );
+            })}
+          </div>
+        );
+      })()}
+
+      {/* ═══ 4. Nota Metodológica ═══ */}
+      <div style={{ ...cardStyle, fontSize: 12, color: "#94a3b8", lineHeight: 1.8 }}>
+        {sectionTitle("5. Nota Metodológica")}
+        <p style={{ margin: "0 0 10px", color: "#cbd5e1" }}>
+          <b style={{ color: "#e2e8f0" }}>Modelo :</b> Para cada semana epidemiológica (SE),
+          o número de casos segue X ~ Poisson(λ·e), com λ ~ Gamma(a, b) como prior. A marginalização resulta
+          em X ~ Binomial Negativa, capturando a sobredispersão típica de dados epidemiológicos.
+        </p>
+        <p style={{ margin: "0 0 10px", color: "#cbd5e1" }}>
+          <b style={{ color: "#e2e8f0" }}>Leave-one-out:</b> O canal de cada ano monitorado é estimado
+          excluindo-se aquele ano da base histórica, garantindo que os limiares são genuinamente preditivos.
+        </p>
+        <p style={{ margin: "0 0 10px", color: "#cbd5e1" }}>
+          <b style={{ color: "#e2e8f0" }}>Classificação em 5 zonas:</b> Os percentis probabilidade de ocorrência na semana epidemiológica
+          da distribuição preditiva definem as zonas Sucesso (≤P25), Segurança (P25–P50), Alerta (P50–P75),
+          Epidêmico (P75–P90) e Emergência ({">"}P90).
+        </p>
+        <p style={{ margin: "0 0 10px", color: "#cbd5e1" }}>
+          <b style={{ color: "#e2e8f0" }}>Canais por faixa etária:</b> Para os 20 agravos prioritários,
+          canais sindrômicos individuais foram calculados para 6 faixas etárias (Bebês, Crianças, Adolescentes,
+          Adultos jovens, Meia-idade e Idosos), permitindo análise estratificada no dashboard interativo.
+        </p>
+        <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: 10, marginTop: 10 }}>
+          <p style={{ margin: 0, fontSize: 11, color: "#64748b" }}>
+            Fonte: IDS Saúde (Relatório 187) · Município: Rio Claro/SP ·
+            Elaborado pela Vigilância Epidemiológica, Fundação Municipal de Saúde ·
+            Atualização: segundas-feiras às 8h · Extração automática diária às 3h
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function App() {
+  const agravos = Object.keys(DATA.channels);
+  const [selectedAgravo, setSelectedAgravo] = useState(agravos[0]);
+  const [selectedYear, setSelectedYear] = useState(null);
+  const [overlayYears, setOverlayYears] = useState([]);
+  const [logScale, setLogScale] = useState(false);
+  const [categoryFilter, setCategoryFilter] = useState("capitulos");
+  const [activeTab, setActiveTab] = useState("boletim");
+  const [activeAgeGroups, setActiveAgeGroups] = useState([]);
+  const [sinExpanded, setSinExpanded] = useState(false);
+
+  const channelData = DATA.channels[selectedAgravo];
+  const years = channelData?.years || [];
+  const year = selectedYear || years[years.length - 1];
+  const kpi = channelData?.kpis?.[String(year)] || {};
+
+  const filteredAgravos = useMemo(() => {
+    return CATEGORIES[categoryFilter] || agravos;
+  }, [categoryFilter, agravos]);
+
+  const toggleAgeGroup = (ag) => {
+    setActiveAgeGroups(prev =>
+      prev.includes(ag) ? prev.filter(x => x !== ag) : [...prev, ag]
+    );
+  };
+
+  // Build age group series for the selected agravo + year
+  const ageGroupSeries = useMemo(() => {
+    if (activeAgeGroups.length === 0) return [];
+    const agData = AGE_GROUP_DATA[selectedAgravo];
+    if (!agData) return [];
+    const series = [];
+    for (const ag of activeAgeGroups) {
+      if (!agData[ag]) continue;
+      const yearData = agData[ag][String(year)];
+      if (!yearData) continue;
+      const points = [];
+      for (let se = 1; se <= 52; se++) {
+        points.push({ se, value: yearData[String(se)] || 0 });
+      }
+      series.push({ name: ag, color: AGE_COLORS[ag], data: points });
+    }
+    return series;
+  }, [selectedAgravo, year, activeAgeGroups]);
+
+  // When exactly 1 age group is active and age channel data exists, use age-specific channel
+  const ageChannel = useMemo(() => {
+    if (activeAgeGroups.length !== 1) return null;
+    const ag = activeAgeGroups[0];
+    const agCh = AGE_CHANNELS[selectedAgravo];
+    if (!agCh || !agCh[ag]) return null;
+    return agCh[ag];
+  }, [selectedAgravo, activeAgeGroups]);
+
+  const toggleOverlay = (y) => {
+    setOverlayYears(prev =>
+      prev.includes(y) ? prev.filter(x => x !== y) : [...prev, y]
+    );
+  };
+
+  const cardStyle = {
+    background: "rgba(255,255,255,0.03)",
+    borderRadius: 14, padding: 20,
+    border: "1px solid rgba(255,255,255,0.06)",
+    marginBottom: 16,
+  };
+
+  return (
+    <div style={{
+      fontFamily: "DM Sans, sans-serif",
+      background: "linear-gradient(135deg, #0c0a1f 0%, #1a1040 50%, #0f172a 100%)",
+      minHeight: "100vh", color: "#e2e8f0", padding: "24px 20px",
+    }}>
+      <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+
+      {/* Header */}
+      <div style={{ textAlign: "center", marginBottom: 28 }}>
+        <h1 style={{
+          fontSize: 28, fontWeight: 700, margin: 0,
+          background: "linear-gradient(90deg, #818cf8, #c084fc, #f472b6)",
+          WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
+        }}>
+          Sala de Situação / CIEVS — FMS Rio Claro/SP
+        </h1>
+        <p style={{ color: "#94a3b8", fontSize: 13, margin: "6px 0 0" }}>
+          Vigilância Epidemiológica e Informação em Saúde · FMS Rio Claro/SP
+        </p>
+        {/* Tab navigation */}
+        <div style={{ display: "flex", gap: 0, marginTop: 20, justifyContent: "center" }}>
+          {[["boletim", "Situação Atual"], ["dashboard", "Canal Sindrômico"], ["cids_prioritarios", "CIDs Prioritários"], ["notificacao", "Notificação Compulsória"], ["boletins_hist", "📋 Boletins"]].map(([key, label]) => (
+            <button key={key} onClick={() => {
+              const defaults = {dashboard: "capitulos", cids_prioritarios: "secaoA", notificacao: "imediata", boletim: null};
+              const cat = defaults[key];
+              if (cat) { setCategoryFilter(cat); setSelectedAgravo(CATEGORIES[cat].find(a => DATA.channels[a]) || CATEGORIES[cat][0]); }
+              setSelectedYear(null); setOverlayYears([]); setActiveAgeGroups([]); setSinExpanded(false);
+              setActiveTab(key);
+            }} style={{
+              padding: "10px 28px", border: "none", cursor: "pointer",
+              fontSize: 13, fontWeight: 600, fontFamily: "DM Sans, sans-serif",
+              background: activeTab === key ? "rgba(129,140,248,0.2)" : "transparent",
+              color: activeTab === key ? "#818cf8" : "#64748b",
+              borderBottom: activeTab === key ? "2px solid #818cf8" : "2px solid transparent",
+              transition: "all 0.2s",
+            }}>{label}</button>
+          ))}
+        </div>
+      </div>
+
+      {activeTab === "boletim" ? <BoletimTab /> : activeTab === "boletins_hist" ? <BoletinsHistorico /> : <>
+
+      {/* Filtro de categoria — varia por aba */}
+      {activeTab === "cids_prioritarios" ? (
+        <div>
+          <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap", justifyContent: "center" }}>
+            {[
+              ["secaoA", "Seção A — Clínicos"],
+              ["secaoB", "Seção B — Sentinelas"],
+            ].map(([key, label]) => (
+              <button key={key} onClick={() => { setCategoryFilter(key); setSelectedAgravo(CATEGORIES[key].find(a => DATA.channels[a]) || CATEGORIES[key][0]); setSelectedYear(null); setOverlayYears([]); setActiveAgeGroups([]); }} style={{
+                padding: "8px 18px", borderRadius: 10, border: "none", cursor: "pointer",
+                fontSize: 13, fontWeight: 600, fontFamily: "DM Sans, sans-serif",
+                background: categoryFilter === key ? "rgba(129,140,248,0.3)" : "rgba(255,255,255,0.06)",
+                color: categoryFilter === key ? "#818cf8" : "#94a3b8",
+              }}>{label}</button>
+            ))}
+            <button onClick={() => { setSinExpanded(v => !v); }} style={{
+              padding: "8px 18px", borderRadius: 10, border: "none", cursor: "pointer",
+              fontSize: 13, fontWeight: 600, fontFamily: "DM Sans, sans-serif",
+              background: sinExpanded ? "rgba(129,140,248,0.3)" : "rgba(255,255,255,0.06)",
+              color: sinExpanded ? "#818cf8" : "#94a3b8",
+            }}>Síndromes {sinExpanded ? "▲" : "▼"}</button>
+          </div>
+          {sinExpanded && (
+            <div style={{ display: "flex", gap: 6, marginBottom: 8, flexWrap: "wrap", justifyContent: "center", padding: "8px", background: "rgba(255,255,255,0.03)", borderRadius: 10 }}>
+              {CATEGORIES["sindromes_col"].map(a => (
+                <button key={a} onClick={() => { setCategoryFilter("sindromes_col"); setSelectedAgravo(a); setSelectedYear(null); setOverlayYears([]); }} style={{
+                  padding: "5px 12px", borderRadius: 8, border: "none", cursor: "pointer",
+                  fontSize: 11, fontFamily: "DM Sans, sans-serif",
+                  background: selectedAgravo === a ? "rgba(99,102,241,0.3)" : "rgba(255,255,255,0.04)",
+                  color: selectedAgravo === a ? "#a5b4fc" : "#94a3b8",
+                  border: selectedAgravo === a ? "1px solid rgba(99,102,241,0.5)" : "1px solid rgba(255,255,255,0.06)",
+                }}>{a.length > 40 ? a.substring(0, 37) + "..." : a}</button>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : activeTab === "notificacao" ? (
+        <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap", justifyContent: "center" }}>
+          {[
+            ["imediata", "⚡ Imediata (24h)"],
+            ["semanal", "📋 Semanal (7 dias)"],
+          ].map(([key, label]) => (
+            <button key={key} onClick={() => { setCategoryFilter(key); setSelectedAgravo(CATEGORIES[key].find(a => DATA.channels[a]) || CATEGORIES[key][0]); setSelectedYear(null); setOverlayYears([]); setActiveAgeGroups([]); }} style={{
+              padding: "8px 18px", borderRadius: 10, border: "none", cursor: "pointer",
+              fontSize: 13, fontWeight: 600, fontFamily: "DM Sans, sans-serif",
+              background: categoryFilter === key ? "rgba(129,140,248,0.3)" : "rgba(255,255,255,0.06)",
+              color: categoryFilter === key ? "#818cf8" : "#94a3b8",
+            }}>{label}</button>
+          ))}
+        </div>
+      ) : (
+        <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap", justifyContent: "center" }}>
+          {[
+            ["capitulos", "Capítulos CID"],
+            ["cids", "CIDs Individuais"],
+            ["sindromes", "Síndromes"],
+          ].map(([key, label]) => (
+            <button key={key} onClick={() => { setCategoryFilter(key); setSelectedAgravo(CATEGORIES[key][0]); setSelectedYear(null); setOverlayYears([]); setActiveAgeGroups([]); }} style={{
+              padding: "8px 18px", borderRadius: 10, border: "none", cursor: "pointer",
+              fontSize: 13, fontWeight: 600, fontFamily: "DM Sans, sans-serif",
+              background: categoryFilter === key ? "rgba(129,140,248,0.3)" : "rgba(255,255,255,0.06)",
+              color: categoryFilter === key ? "#818cf8" : "#94a3b8",
+            }}>{label}</button>
+          ))}
+        </div>
+      )}
+
+      {/* Sub-botões dos agravos — ocultar quando sinExpanded ativo (evita duplicação) */}
+      {!(activeTab === "cids_prioritarios" && sinExpanded) && (
+      <div style={{ display: "flex", gap: 6, marginBottom: 16, flexWrap: "wrap", justifyContent: "center" }}>
+        {filteredAgravos.map(a => (
+          <button key={a} onClick={() => { setSelectedAgravo(a); setSelectedYear(null); setOverlayYears([]); }} style={{
+            padding: "5px 12px", borderRadius: 8, border: "none", cursor: "pointer",
+            fontSize: 11, fontFamily: "DM Sans, sans-serif",
+            background: selectedAgravo === a ? "rgba(99,102,241,0.3)" : "rgba(255,255,255,0.04)",
+            color: selectedAgravo === a ? "#a5b4fc" : "#94a3b8",
+            border: selectedAgravo === a ? "1px solid rgba(99,102,241,0.5)" : "1px solid rgba(255,255,255,0.06)",
+          }}>{a.length > 40 ? a.substring(0, 37) + "..." : a}</button>
+        ))}
+      </div>
+      )}
+
+      {/* Sem dados para agravo selecionado */}
+      {!channelData && (
+        <div style={{ textAlign: "center", padding: "48px 24px", color: "#64748b" }}>
+          <div style={{ fontSize: 32, marginBottom: 12 }}>📊</div>
+          <div style={{ fontSize: 15, fontWeight: 600, color: "#94a3b8" }}>Sem dados disponíveis</div>
+          <div style={{ fontSize: 12, marginTop: 6 }}>Canal sindrômico ainda não computado para <b style={{color:"#818cf8"}}>{selectedAgravo}</b></div>
+          <div style={{ fontSize: 11, marginTop: 4, color: "#475569" }}>Será disponibilizado na próxima execução do pipeline.</div>
+        </div>
+      )}
+
+      {/* Seleção de ano + overlay */}
+      <div style={{ display: channelData ? "flex" : "none", gap: 6, marginBottom: 12, flexWrap: "wrap", alignItems: "center" }}>
+        <span style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase", letterSpacing: 1 }}>
+          Ano:
+        </span>
+        {years.map(y => (
+          <button key={y} onClick={() => setSelectedYear(y)} style={{
+            padding: "4px 10px", borderRadius: 6, border: "none", cursor: "pointer",
+            fontSize: 11, fontFamily: "JetBrains Mono, monospace",
+            background: y === year ? "rgba(251,191,36,0.25)" : "rgba(255,255,255,0.04)",
+            color: y === year ? "#fbbf24" : "#94a3b8",
+            fontWeight: y === year ? 700 : 400,
+          }}>{y}</button>
+        ))}
+        <span style={{ fontSize: 11, color: "#64748b", marginLeft: 12, textTransform: "uppercase", letterSpacing: 1 }}>
+          Sobrepor:
+        </span>
+        {years.filter(y2 => y2 !== year).map(y => (
+          <button key={y} onClick={() => toggleOverlay(y)} style={{
+            padding: "4px 10px", borderRadius: 6, border: "none", cursor: "pointer",
+            fontSize: 11, fontFamily: "JetBrains Mono, monospace",
+            background: overlayYears.includes(y) ? "rgba(255,255,255,0.15)" : "rgba(255,255,255,0.04)",
+            color: YEAR_COLORS[y] || "#94a3b8",
+            opacity: overlayYears.includes(y) ? 1 : 0.5,
+          }}>{y}</button>
+        ))}
+        <button onClick={() => setLogScale(!logScale)} style={{
+          marginLeft: "auto", padding: "4px 10px", borderRadius: 6,
+          border: "none", cursor: "pointer", fontSize: 11,
+          background: logScale ? "rgba(234,88,12,0.3)" : "rgba(255,255,255,0.06)",
+          color: logScale ? "#f97316" : "#94a3b8",
+          fontFamily: "JetBrains Mono, monospace",
+        }}>{logScale ? "LOG" : "LIN"}</button>
+      </div>
+
+      {/* Faixa etária */}
+      <div style={{ display: "flex", gap: 6, marginBottom: 16, flexWrap: "wrap", alignItems: "center" }}>
+        <span style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase", letterSpacing: 1 }}>
+          Faixa etária:
+        </span>
+        {activeAgeGroups.length === 1 && AGE_CHANNELS[selectedAgravo]?.[activeAgeGroups[0]] && (
+          <span style={{ fontSize: 10, color: "#818cf8", fontStyle: "italic" }}>
+            (canal específico ativo)
+          </span>
+        )}
+        <button onClick={() => {
+          setActiveAgeGroups(prev => prev.length === AGE_GROUPS.length ? [] : [...AGE_GROUPS]);
+        }} style={{
+          padding: "4px 10px", borderRadius: 6, border: "none", cursor: "pointer",
+          fontSize: 11, fontWeight: 700, fontFamily: "JetBrains Mono, monospace",
+          background: activeAgeGroups.length === AGE_GROUPS.length ? "rgba(129,140,248,0.3)" : "rgba(255,255,255,0.06)",
+          color: activeAgeGroups.length === AGE_GROUPS.length ? "#818cf8" : "#94a3b8",
+        }}>TODAS</button>
+        {AGE_GROUPS.map(ag => (
+          <button key={ag} onClick={() => toggleAgeGroup(ag)} style={{
+            padding: "4px 10px", borderRadius: 6, border: "none", cursor: "pointer",
+            fontSize: 11, fontFamily: "JetBrains Mono, monospace",
+            background: activeAgeGroups.includes(ag) ? "rgba(255,255,255,0.15)" : "rgba(255,255,255,0.04)",
+            color: AGE_COLORS[ag] || "#94a3b8",
+            opacity: activeAgeGroups.includes(ag) ? 1 : 0.5,
+          }}>{ag}</button>
+        ))}
+      </div>
+
+      {/* KPI Cards */}
+      <div style={{ display: "flex", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
+        <KpiCard label="Total do ano" value={kpi.total || 0} color="#60a5fa" />
+        <KpiCard label="Pico" value={kpi.pico || 0} sub={`SE ${kpi.pico_se || "?"}`}
+                 color="#f472b6" />
+        <KpiCard label="SEs em zona crítica" value={kpi.se_acima_p90 || 0}
+                 sub={`de ${channelData?.se_list?.length || 52}`}
+                 color={kpi.se_acima_p90 > 10 ? "#ef4444" : "#34d399"} />
+      </div>
+
+      {/* Heatmap multi-ano (sempre visível) */}
+      <div style={cardStyle}>
+        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>
+          Mapa de Calor — Classificação Semanal ({Math.max(years[0], years[years.length-1]-5)}–{years[years.length-1]})
+        </div>
+        <MultiYearHeatmap
+          classifications={channelData?.classifications || {}}
+          seList={channelData?.se_list || []}
+          years={years}
+          raw={channelData?.raw || []}
+          currentYear={years[years.length - 1]}
+        />
+        <div style={{ marginTop: 10 }}><ZoneLegend /></div>
+      </div>
+
+      {/* Canal Sindrômico */}
+      <div style={cardStyle}>
+        <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>
+          Canal Sindrômico — {selectedAgravo}
+          {ageChannel && <span style={{
+            fontSize: 11, fontWeight: 500, marginLeft: 12,
+            background: "rgba(129,140,248,0.2)", color: "#a5b4fc",
+            padding: "3px 10px", borderRadius: 6,
+          }}>Canal: {activeAgeGroups[0]}</span>}
+        </div>
+        <EndemicChannelChart channelData={channelData} year={year}
+                             overlayYears={overlayYears} logScale={logScale}  ageGroupSeries={ageGroupSeries} ageChannel={ageChannel} />
+      </div>
+
+      {/* Exceedance */}
+      <div style={cardStyle}>
+        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>
+          Excedência Semanal (Observado vs Limite Crítico) — {year}
+        </div>
+        <ExceedanceChart channelData={channelData} year={year} />
+      </div>
+
+      {/* Metodologia */}
+      <div style={{ ...cardStyle, fontSize: 12, color: "#94a3b8", lineHeight: 1.7 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: "#e2e8f0", marginBottom: 8 }}>
+          Metodologia
+        </div>
+        <p style={{ margin: "0 0 8px" }}>
+          <b>Modelo :</b> Para cada semana epidemiológica (SE),
+          o número de casos segue X ~ Poisson(λ·e), com λ ~ Gamma(a, b) como prior.
+          A marginalização resulta em X ~ Binomial Negativa, capturando a sobredispersão
+          típica de dados epidemiológicos.
+        </p>
+        <p style={{ margin: "0 0 8px" }}>
+          <b>Leave-one-out:</b> O canal de cada ano monitorado é estimado excluindo-se
+          aquele ano da base histórica, garantindo que os limiares são genuinamente preditivos.
+        </p>
+        <p style={{ margin: "0 0 8px" }}>
+          <b>Classificação em 5 zonas:</b> Percentis probabilidade de ocorrência na semana epidemiológica da distribuição
+          preditiva definem as zonas Sucesso (≤P25), Segurança (P25–P50), Alerta (P50–P75),
+          Epidêmico (P75–P90) e Emergência ({">"}P90).
+        </p>
+        <p style={{ margin: "0 0 4px", fontSize: 11, color: "#64748b" }}>
+          Base histórica: 2022–2025 · Ano monitorado: 2026 · Monte Carlo: 30.000 amostras/SE
+        </p>
+        <p style={{ margin: 0, fontSize: 11, color: "#64748b" }}>
+          Dados: IDS Saúde (Relatório 187) · Município: Rio Claro/SP · Vigilância Epidemiológica, Fundação Municipal de Saúde
+        </p>
+      </div>
+
+      </>}
+    </div>
+  );
+}
+
+
+function BoletinsHistorico() {
+  const [manifest, setManifest] = React.useState(null);
+  const [erro, setErro] = React.useState(null);
+  React.useEffect(() => {
+    fetch('boletins/manifest.json')
+      .then(r => { if (!r.ok) throw new Error('sem boletins'); return r.json(); })
+      .then(data => setManifest(data))
+      .catch(e => setErro(e.message));
+  }, []);
+  const meses = ["jan","fev","mar","abr","mai","jun","jul","ago","set","out","nov","dez"];
+  const fmtD = (iso) => {
+    if (!iso) return "—";
+    const d = new Date(iso + "T12:00:00");
+    return `${String(d.getDate()).padStart(2,"0")}/${meses[d.getMonth()]}/${d.getFullYear()}`;
+  };
+  const cardStyle = { background:"rgba(255,255,255,0.03)", borderRadius:14, padding:20,
+    border:"1px solid rgba(255,255,255,0.06)", marginBottom:16 };
+  if (!manifest && !erro) return <div style={{textAlign:"center",padding:"48px",color:"#64748b"}}>⏳ Carregando boletins…</div>;
+  return (
+    <div style={{maxWidth:760,margin:"0 auto"}}>
+      <div style={{...cardStyle, background:"linear-gradient(135deg,rgba(99,102,241,0.1),rgba(168,85,247,0.1))"}}>
+        <div style={{fontSize:11,color:"#818cf8",textTransform:"uppercase",letterSpacing:2,marginBottom:6}}>
+          Sala de Situação / CIEVS · FMS Rio Claro/SP
+        </div>
+        <h2 style={{fontSize:20,fontWeight:700,margin:"0 0 4px",
+          background:"linear-gradient(90deg,#818cf8,#c084fc)",
+          WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>
+          Boletins Sindrômicos — Acervo
+        </h2>
+        <p style={{color:"#94a3b8",fontSize:13,margin:0}}>
+          Boletins semanais de atendimentos sindrômicos nas UPAs · Gerados automaticamente a cada ciclo de dados.
+        </p>
+      </div>
+      <div style={cardStyle}>
+        {(erro || !manifest || manifest.length === 0) ? (
+          <div style={{color:"#64748b",fontSize:13,textAlign:"center",padding:"32px 0"}}>
+            <div style={{fontSize:36,marginBottom:12}}>📋</div>
+            <div style={{fontWeight:600,color:"#94a3b8",marginBottom:8}}>Nenhum boletim disponível ainda</div>
+            <div style={{fontSize:12,lineHeight:1.8}}>Os boletins são gerados automaticamente a cada atualização do pipeline.<br/>O primeiro estará disponível após o próximo ciclo de execução.</div>
+          </div>
+        ) : (
+          <>
+          <div style={{fontSize:13,fontWeight:700,color:"#e2e8f0",marginBottom:16,
+            borderBottom:"2px solid rgba(129,140,248,0.3)",paddingBottom:8}}>
+            {manifest.length} boletim{manifest.length!==1?"s":""} disponíveis
+          </div>
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            {manifest.map((b,i) => (
+              <a key={b.arquivo} href={`boletins/${b.arquivo}`} target="_blank" rel="noopener noreferrer"
+                style={{textDecoration:"none"}}>
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",
+                  padding:"12px 16px",borderRadius:10,
+                  background:i===0?"rgba(99,102,241,0.12)":"rgba(255,255,255,0.03)",
+                  border:i===0?"1px solid rgba(99,102,241,0.4)":"1px solid rgba(255,255,255,0.06)",
+                  cursor:"pointer"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:12}}>
+                    <span style={{fontSize:22}}>📄</span>
+                    <div>
+                      <div style={{display:"flex",alignItems:"center",gap:8}}>
+                        <span style={{fontSize:14,fontWeight:700,color:"#e2e8f0"}}>
+                          SE {String(b.se).padStart(2,"0")}/{b.ano}
+                        </span>
+                        {i===0 && <span style={{fontSize:10,background:"#6366f1",color:"#fff",
+                          padding:"1px 7px",borderRadius:4,fontWeight:700}}>ATUAL</span>}
+                      </div>
+                      <div style={{fontSize:11,color:"#94a3b8",marginTop:2}}>
+                        {fmtD(b.data_inicio)} a {fmtD(b.data_fim)}
+                        {b.gerado_em && ` · Gerado em ${fmtD(b.gerado_em)}`}
+                      </div>
+                      <div style={{fontSize:10,color:"#64748b",marginTop:1,fontFamily:"monospace"}}>
+                        {b.arquivo}
+                      </div>
+                    </div>
+                  </div>
+                  <span style={{fontSize:12,color:"#818cf8",fontWeight:600}}>⬇ Baixar PDF</span>
+                </div>
+              </a>
+            ))}
+          </div>
+          </>
+        )}
+      </div>
+      <div style={{...cardStyle,fontSize:12,color:"#94a3b8",lineHeight:1.8}}>
+        Documentos PDF gerados automaticamente a cada atualização semanal.
+        Para consulta interativa dos canais sindrômicos, utilize as abas{" "}
+        <b style={{color:"#818cf8"}}>Canais Sindrômicos</b> e <b style={{color:"#818cf8"}}>Situação Atual</b>.
+      </div>
+    </div>
+  );
+}
+
+(async () => {
+  const root = document.getElementById('root');
+  root.innerHTML = `
+    <div style="min-height:100vh;display:flex;align-items:center;
+                justify-content:center;background:#0c0a1f;">
+      <div style="color:#a5b4fc;font-family:'DM Sans',sans-serif;
+                  font-size:1.1rem;text-align:center;">
+        ⏳ Carregando dados…
+      </div>
+    </div>`;
+
+  try {
+    [DATA, AGE_GROUP_DATA, AGE_CHANNELS, BOLETIM_DATA] = await Promise.all([
+      fetch('channel_data.json').then(r => { if (!r.ok) throw new Error(r.statusText); return r.json(); }),
+      fetch('age_group_data.json').then(r => { if (!r.ok) throw new Error(r.statusText); return r.json(); }),
+      fetch('age_channels.json').then(r => { if (!r.ok) throw new Error(r.statusText); return r.json(); }),
+      fetch('boletim_data.json').then(r => { if (!r.ok) throw new Error(r.statusText); return r.json(); }),
+    ]);
+    ReactDOM.render(<App />, root);
+  } catch (err) {
+    root.innerHTML = `
+      <div style="min-height:100vh;display:flex;align-items:center;
+                  justify-content:center;background:#0c0a1f;">
+        <div style="color:#ef4444;font-family:'DM Sans',sans-serif;padding:2rem;text-align:center;">
+          ❌ Erro ao carregar dados: ${err.message}<br/>
+          <small style="color:#94a3b8">Verifique se channel_data.json, age_group_data.json,
+          age_channels.json e boletim_data.json estão na mesma pasta que index.html.</small>
+        </div>
+      </div>`;
+  }
+})();
+
+</script>
+</body>
+</html>

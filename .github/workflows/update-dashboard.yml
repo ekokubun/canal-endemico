@@ -96,37 +96,17 @@ jobs:
             --agravos all \
             --base-hist-years ${{ steps.hist_years.outputs.base_hist_years }}
 
-      - name: Atualizar dashboard (dados + boletim) sem recalcular canais
-        if: steps.check_channels.outputs.recompute_channels == 'false'
-        run: |
-          echo "Atualizando dashboard com novos dados (canais fixos mantidos)..."
-          echo "Anos base: ${{ steps.hist_years.outputs.base_hist_years }}"
-          python3 compute_channels.py dados_ids.csv \
-            --pop '{"2021":210000,"2022":210000,"2023":210000,"2024":210000,"2025":210000,"2026":210000}' \
-            --output channel_data.json \
-            --agravos all \
-            --base-hist-years ${{ steps.hist_years.outputs.base_hist_years }} \
-            --skip-channel-estimation
-
-      - name: Gerar index.html
-        run: |
-          python3 pipeline.py dados_ids.csv --no-recompute --output index.html
-
-      # Boletim PDF: NÃO é mais gerado aqui — a VPS o gera (Chromium) e dá push de
-      # volta via cron_carga.sh (Fase 4, opção 1). Por isso boletins/ saiu do git add.
-      - name: Commit e push
+      # Fase 5/A: a VPS é a AUTORIDADE dos JSONs de dados (channel_data.json, age_*,
+      # boletim_data.json) e do dashboard — regenera tudo no cron diário. O CI não
+      # computa mais o incremental diário nem gera index.html. O ÚNICO papel restante
+      # do CI é a RECALIBRAÇÃO ANUAL (janeiro) dos states de calibração, que vêm via
+      # git para a VPS. O step de recompute acima já é gated por janeiro (recompute_channels).
+      - name: Commit e push (só os states de calibração — recalibração anual)
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add channel_data.json channel_state.json age_group_data.json age_channels.json age_state.json boletim_data.json index.html
-          git diff --cached --quiet && echo "Sem alterações" && exit 0
-          SE=$(python3 -c "
-          import json, datetime
-          with open('channel_data.json') as f:
-              d = json.load(f)
-          ch = list(d['channels'].values())[0]
-          se = max((r['se'] for r in ch['raw'] if r.get('c2026',0)>0), default=0)
-          print(se)
-          ")
-          git commit -m "Dashboard atualizado — SE ${SE}/2026 [$(date '+%d/%m/%Y %H:%M')]"
+          # Só os states (sementes da história). Os JSONs derivados são da VPS (não versionados pelo CI).
+          git add channel_state.json age_state.json
+          git diff --cached --quiet && echo "Sem alterações (fora de janeiro = no-op)" && exit 0
+          git commit -m "Recalibração anual dos canais (states) [$(date '+%d/%m/%Y %H:%M')]"
           git push
