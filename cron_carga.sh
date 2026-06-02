@@ -49,19 +49,15 @@ if [ "$SZ" -lt 500000 ]; then
   echo "ERRO: $CSV suspeito ($SZ bytes) — abortando"; exit 1
 fi
 
-# 2. Atualizar código + estado do GitHub SEM merge completo. Faz checkout só dos
-#    arquivos versionados (exceto channel_data.json, que a carga regenera) — evita
-#    o conflito que travava o `git pull` e dispensa stash/sudo. O HEAD fica "atrás"
-#    de propósito; `git status` ruidoso é normal. (Mantido mesmo após a imagem
-#    --user resolver o root-owned: o conflito é de CONTEÚDO do channel_data.json
-#    — VPS regenera vs CI commita — e persiste independente de ownership.)
+# 2. Sincronizar com o GitHub via GIT PULL (Fase A-completa — adeus ao HEAD congelado).
+#    Por que funciona agora: os JSONs de dados regenerados (channel_data.json e derivados)
+#    são GITIGNORADOS (não versionados → não sujam a árvore); os boletins/DOCX são
+#    determinísticos e já vivem em origin (empurrados pelo clone efêmero) → árvore limpa.
+#    Se por algum motivo a árvore estiver suja, resync forçado p/ origin/main (auto-heal).
 git fetch origin -q || echo "AVISO: git fetch falhou — usando local"
-# Fase A: index.html virou redirect (GitHub Pages); o TEMPLATE do dashboard agora é
-# template.html. Os JSONs derivados (channel_data.json/age_*/boletim_data.json) são
-# regenerados pela VPS — não dependemos mais deles vindos do CI. channel_state.json e
-# age_state.json (sementes da calibração) continuam vindo do CI (recalibração de janeiro).
-git checkout origin/main -- '*.py' Dockerfile db/ boletins/ analises_ia/ template.html requirements-vps.txt \
-  cron_carga.sh channel_state.json age_state.json 'boletim_SE*.docx' 2>/dev/null || echo "AVISO: checkout parcial falhou"
+git pull --ff-only origin main -q 2>/dev/null \
+  || { echo "AVISO: ff-pull bloqueado — resync forçado p/ origin/main"; \
+       git reset --hard origin/main -q || echo "AVISO: resync falhou — usando local"; }
 
 # 3. Credenciais do Postgres (da env do próprio container)
 PGUSER_V=$(docker exec "$PG_CONTAINER" printenv POSTGRES_USER); PGUSER_V=${PGUSER_V:-postgres}

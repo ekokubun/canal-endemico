@@ -8,3 +8,11 @@ dados_ids.csv
 # Segredos — chaves de API nunca no git (a chave fica em ~/.secrets/ na VPS)
 *.env
 .secrets/
+
+# Fase A: JSONs de dados gerados pela VPS (fonte única) — não versionar. A VPS os
+# regenera a cada carga; o dashboard é servido por dash.epikinesis.com.br/canal/.
+# (channel_state.json e age_state.json — sementes da calibração — CONTINUAM versionados.)
+channel_data.json
+age_channels.json
+age_group_data.json
+boletim_data.json

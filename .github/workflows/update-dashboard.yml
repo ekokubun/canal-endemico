@@ -74,12 +74,12 @@ jobs:
       - name: Verificar se canais precisam ser recalculados
         id: check_channels
         run: |
-          # Canais são recalculados apenas em janeiro (início do ano epidemiológico)
-          # ou se channel_data.json não existir
+          # Recalibração SÓ em janeiro. (channel_data.json não é mais versionado — Fase A —
+          # então o antigo check de "arquivo ausente" sairia sempre true; removido.)
           MONTH=$(date +%m)
-          if [ ! -f channel_data.json ] || [ "$MONTH" = "01" ]; then
+          if [ "$MONTH" = "01" ]; then
             echo "recompute_channels=true" >> $GITHUB_OUTPUT
-            echo "Canais serão recalculados (janeiro ou arquivo ausente)"
+            echo "Canais serão recalculados (janeiro)"
           else
             echo "recompute_channels=false" >> $GITHUB_OUTPUT
             echo "Canais existentes mantidos (fora de janeiro)"
